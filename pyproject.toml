@@ -1,0 +1,57 @@
+[project]
+name = "py21ssh"
+version = "0.1.0"
+description = "21 (Blackjack) via TCP — jogue pela intranet sem shell"
+requires-python = ">=3.11"
+authors = [{name = "Matheus Marinho"}]
+
+dependencies = [
+    "rich>=13.0",
+]
+
+[project.scripts]
+py21ssh = "py21ssh.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "mypy>=1.8",
+    "pre-commit>=3.6",
+    "ruff>=0.3",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+exclude = ["tests/"]
+disallow_untyped_defs = true
+disallow_any_unimported = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+check_untyped_defs = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+exclude = [".git", "__pycache__"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "SIM", "PT", "RUF"]
+ignore = ["ANN101", "ANN102"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN201", "S101"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
