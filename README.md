@@ -15,8 +15,15 @@ Jogue 21 (Blackjack) pela sua intranet conectando com `nc`. Zero shell, zero SSH
 uv sync
 uv run py21ssh                   # 0.0.0.0:4443
 
-# Cliente — só precisa de netcat
+# Cliente — opção 1: netcat (Linux/macOS)
 nc 192.168.1.100 4443
+
+# Cliente — opção 2: ncat (Windows via winget install nmap)
+ncat 127.0.0.1 4443
+
+# Cliente — opção 3: Python (Windows, sem instalar nada)
+uv run python client.py          # 127.0.0.1:4443
+uv run python client.py 192.168.1.100
 ```
 
 ## Instalação
@@ -43,6 +50,18 @@ uv run py21ssh --host 0.0.0.0 --port 4443
 | `2` ou `s` | Stand — parar |
 | `3` ou `d` | Double — dobrar aposta (só nas 2 primeiras) |
 | `q` | Sair |
+
+## Conectar
+
+```bash
+# Terminal 1 — servidor
+uv run py21ssh --host 0.0.0.0 --port 4443
+
+# Terminal 2 — cliente (3 opções)
+nc <ip> 4443                # Linux/macOS
+ncat <ip> 4443              # Windows (nmap)
+uv run python client.py     # Windows (uv + Python)
+```
 
 ## Arquitetura
 

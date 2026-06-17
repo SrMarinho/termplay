@@ -219,7 +219,24 @@ class RichRenderer:
 | Transport: I/O | `test_tcp_adapter.py` | 14 |
 | **Total** | | **65** |
 
-## 8. Transportes Futuros
+## 8. Clientes e Transportes
+
+### 8.1 Cliente
+
+O servidor aceita qualquer cliente TCP bruto. Opções:
+
+| Cliente | Comando | Plataforma |
+|---------|---------|------------|
+| **netcat** | `nc <host> 4443` | Linux/macOS |
+| **ncat** | `ncat <host> 4443` | Windows (via nmap) |
+| **Python client** | `uv run python client.py` | Windows (zero instalação) |
+| **Telnet** | `telnet <host> 4443` | Linux/Windows |
+| **PowerShell** | `TcpClient` | Windows (manual) |
+
+O arquivo `client.py` na raiz do projeto é um cliente TCP mínimo que
+resolve `asyncio.open_connection` + stdin/stdout forwarding.
+
+### 8.2 Transportes Futuros
 
 A arquitetura em camadas permite adicionar novos transportes
 sem modificar domain, application ou display:
