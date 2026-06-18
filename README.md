@@ -59,14 +59,14 @@ ao atingir o mínimo de jogadores. Sala tem chat.
 uv sync --extra dev          # deps de dev (pytest, mypy, ruff)
 
 uv run python -m pytest tests/ -q    # testes
-uv run python -m mypy src/ --strict  # type checking
-uv run python -m ruff check src/     # lint
+uv run python -m mypy termplay/ --strict  # type checking
+uv run python -m ruff check termplay/     # lint
 ```
 
 ## Arquitetura
 
 ```
-src/termplay/
+termplay/
 ├── engine/             # núcleo agnóstico de jogo
 │   ├── registry.py     #   GameRegistry — plugins se registram via @register
 │   ├── game.py         #   IGame — contrato de plugin
@@ -89,7 +89,7 @@ I/O do jogo. O cliente renderiza telas nativas — sem dump de ANSI cru.
 
 ## Adicionar um jogo
 
-1. Criar `src/termplay/games/<jogo>/plugin.py` implementando `IGame`.
+1. Criar `termplay/games/<jogo>/plugin.py` implementando `IGame`.
 2. Registrar com `@GameRegistry.register(...)`.
 3. Importar o plugin em `games/__init__.py` para auto-registro.
 
