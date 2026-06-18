@@ -88,43 +88,36 @@ class MultiplayerGameController:
         for player in active:
             player.hand = Hand([deck.draw(), deck.draw()])
 
-        # Show initial table to each player
-        for player in active:
-            await player.transport.write(
-                player.renderer.table(
-                    player.hand, dealer_hand, player.balance, player.bet
-                )
-            )
+        # Show initial table to all players
+        await self._broadcast_all_tables(active[0], active, dealer_hand)
 
         # Player turns
         for player in active:
-            await player.transport.write(
-                player.renderer.prompt(f"Vez de {player.name}...")
-            )
-            await self._play_player_turn(player, dealer_hand, deck)
+            await self._broadcast_all_tables(player, active, dealer_hand)
+            await self._play_player_turn(player, dealer_hand, deck, active)
 
         # Dealer plays (if any player still standing)
         if any(not p.hand.is_bust for p in active):
             self._rules.dealer_play(dealer_hand, deck)
 
-        # Results
+        # Resolve results, apply balance changes, then broadcast final table
+        player_results: list[tuple[_PlayerState, RoundResult]] = []
         for player in active:
             if player.hand.is_bust:
-                result = RoundResult.LOSE
+                res = RoundResult.LOSE
             elif player.hand.is_blackjack and not dealer_hand.is_blackjack:
-                result = RoundResult.BLACKJACK
+                res = RoundResult.BLACKJACK
             else:
-                result = self._rules.resolve(player.hand, dealer_hand)
+                res = self._rules.resolve(player.hand, dealer_hand)
+            self._apply_result(player, res)
+            player_results.append((player, res))
 
+        await self._broadcast_all_tables(
+            active[0], active, dealer_hand, reveal_dealer=True
+        )
+        for player, res in player_results:
             await player.transport.write(
-                player.renderer.table(
-                    player.hand, dealer_hand, player.balance, player.bet,
-                    reveal_dealer=True,
-                )
-            )
-            self._apply_result(player, result)
-            await player.transport.write(
-                player.renderer.result(result, player.bet, player.balance)
+                player.renderer.result(res, player.bet, player.balance)
             )
 
     async def _get_bet(self, player: _PlayerState) -> int | None:
@@ -155,29 +148,32 @@ class MultiplayerGameController:
             return amount
 
     async def _play_player_turn(
-        self, player: _PlayerState, dealer_hand: Hand, deck: Deck
+        self,
+        player: _PlayerState,
+        dealer_hand: Hand,
+        deck: Deck,
+        all_active: list[_PlayerState],
     ) -> None:
         while not player.hand.is_bust and not player.hand.is_blackjack:
-            await player.transport.write(
-                player.renderer.table(
-                    player.hand, dealer_hand, player.balance, player.bet
-                )
-            )
+            await self._broadcast_all_tables(player, all_active, dealer_hand)
             action = await self._get_action(player)
             if action is PlayerAction.QUIT:
                 player.active = False
                 return
             if action is PlayerAction.STAND:
+                await self._broadcast_all_tables(player, all_active, dealer_hand)
                 break
             if action is PlayerAction.HIT:
                 self._rules.player_hit(player.hand, deck)
                 if player.hand.is_bust:
+                    await self._broadcast_all_tables(player, all_active, dealer_hand)
                     await player.transport.write(player.renderer.bust())
                     break
             elif action is PlayerAction.DOUBLE:
                 if player.hand.can_double and player.balance >= player.bet:
                     player.bet *= 2
                     self._rules.player_hit(player.hand, deck)
+                    await self._broadcast_all_tables(player, all_active, dealer_hand)
                     if player.hand.is_bust:
                         await player.transport.write(player.renderer.bust())
                     break
@@ -235,6 +231,30 @@ class MultiplayerGameController:
 
         await asyncio.gather(*(ask_one(p) for p in active))
         return any(results)
+
+    async def _broadcast_all_tables(
+        self,
+        active_player: _PlayerState,
+        all_active: list[_PlayerState],
+        dealer_hand: Hand,
+        reveal_dealer: bool = False,
+    ) -> None:
+        async def send_to(viewer: _PlayerState) -> None:
+            others = [(p.name, p.hand) for p in all_active if p is not viewer]
+            await viewer.transport.write(
+                viewer.renderer.multiplayer_table(
+                    my_name=viewer.name,
+                    my_hand=viewer.hand,
+                    dealer_hand=dealer_hand,
+                    balance=viewer.balance,
+                    bet=viewer.bet,
+                    others=others,
+                    active_name=active_player.name,
+                    reveal_dealer=reveal_dealer,
+                )
+            )
+
+        await asyncio.gather(*(send_to(p) for p in all_active))
 
     async def _broadcast(self, text: str) -> None:
         await asyncio.gather(*(p.transport.write(text) for p in self._players))

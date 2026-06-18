@@ -89,6 +89,62 @@ class RichRenderer:
             "",
         )
 
+    def multiplayer_table(
+        self,
+        my_name: str,
+        my_hand: Hand,
+        dealer_hand: Hand,
+        balance: int,
+        bet: int,
+        others: list[tuple[str, Hand]],
+        active_name: str = "",
+        reveal_dealer: bool = False,
+    ) -> str:
+        tb = Table.grid(padding=(0, 2))
+        tb.add_column("", style="bold yellow", width=14)
+        tb.add_column("", width=28)
+        tb.add_column("", style="bold cyan", width=6)
+
+        dc = _cards_line(dealer_hand.cards, hide_first=not reveal_dealer)
+        dv = _value_display(dealer_hand.cards, hide_first=not reveal_dealer)
+        tb.add_row("Dealer", dc, dv)
+        tb.add_row("", "", "")
+
+        for name, hand in others:
+            arrow = "[bold green]▶[/] " if name == active_name else "  "
+            tb.add_row(
+                f"{arrow}{name}",
+                _cards_line(hand.cards),
+                _value_display(hand.cards, False),
+            )
+
+        my_arrow = "[bold green]▶[/] " if my_name == active_name else "  "
+        tb.add_row(
+            f"{my_arrow}Você ({my_name})",
+            _cards_line(my_hand.cards),
+            _value_display(my_hand.cards, False),
+        )
+
+        status = f"💰 {balance}"
+        if bet:
+            status += f"  |  🎲 {bet}"
+        if active_name:
+            status += f"  |  Vez de {active_name}"
+        if my_hand.is_blackjack:
+            status += "  |  [bold green]BLACKJACK![/]"
+
+        return _render_console(
+            "",
+            Panel(
+                tb,
+                title="[bold green]🃏  BLACKJACK MULTIPLAYER[/]",
+                subtitle=f"[dim]{status}[/]",
+                border_style="green",
+                width=self._width - 2,
+            ),
+            "",
+        )
+
     def table(
         self,
         player_hand: Hand,
