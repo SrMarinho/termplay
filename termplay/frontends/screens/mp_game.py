@@ -29,13 +29,17 @@ class MpGameScreen(Screen[None]):
     """Mostra o render ANSI do servidor; botões e teclas para ações do jogo."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "leave",      "Sair"),
-        ("1",      "act_hit",    "Hit"),
-        ("h",      "act_hit",    "Hit"),
-        ("2",      "act_stand",  "Stand"),
-        ("s",      "act_stand",  "Stand"),
-        ("3",      "act_double", "Double"),
-        ("d",      "act_double", "Double"),
+        ("escape", "leave",          "Sair"),
+        ("1",      "act_hit",        "Hit"),
+        ("h",      "act_hit",        "Hit"),
+        ("2",      "act_stand",      "Stand"),
+        ("s",      "act_stand",      "Stand"),
+        ("3",      "act_double",     "Double"),
+        ("d",      "act_double",     "Double"),
+        ("left",   "focus_previous", ""),
+        ("right",  "focus_next",     ""),
+        ("up",     "focus_previous", ""),
+        ("down",   "focus_next",     ""),
     ]
 
     DEFAULT_CSS = """
@@ -56,6 +60,11 @@ class MpGameScreen(Screen[None]):
     }
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._mounted = False
+        self._pending: list[dict[str, Any]] = []
+
     def compose(self) -> ComposeResult:
         yield Header()
         yield RichLog(
@@ -69,13 +78,18 @@ class MpGameScreen(Screen[None]):
         yield Input(placeholder="aposta (valor)...", id="cmd")
 
     def on_mount(self) -> None:
-        app = cast("TermplayTUIApp", self.app)
-        app.set_message_handler(self.on_server_message)
+        self._mounted = True
         self.query_one("#cmd", Input).focus()
+        for msg in self._pending:
+            self.run_worker(self.on_server_message(msg))
+        self._pending.clear()
 
     # ── mensagens do servidor ────────────────────────────────────────────────
 
     async def on_server_message(self, msg: dict[str, Any]) -> None:
+        if not self._mounted:
+            self._pending.append(msg)
+            return
         mtype = msg.get("type")
         log = self.query_one("#out", RichLog)
         if mtype == TYPE_GAME_RENDER:
@@ -128,6 +142,12 @@ class MpGameScreen(Screen[None]):
         event.input.clear()
         if value:
             await self._send(value)
+
+    def action_focus_next(self) -> None:
+        self.focus_next()
+
+    def action_focus_previous(self) -> None:
+        self.focus_previous()
 
     async def action_leave(self) -> None:
         app = cast("TermplayTUIApp", self.app)

@@ -15,7 +15,11 @@ class MultiplayerMenuScreen(Screen[None]):
     """Lobby multiplayer: cria sala (P2P host) ou entra em sala existente."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "pop_screen", "Voltar")
+        ("escape", "pop_screen", "Voltar"),
+        ("left",  "focus_previous", ""),
+        ("right", "focus_next",     ""),
+        ("up",    "focus_previous", ""),
+        ("down",  "focus_next",     ""),
     ]
 
     DEFAULT_CSS = """
@@ -59,3 +63,9 @@ class MultiplayerMenuScreen(Screen[None]):
 
     def action_pop_screen(self) -> None:
         self.app.pop_screen()
+
+    def action_focus_next(self) -> None:
+        self.focus_next()
+
+    def action_focus_previous(self) -> None:
+        self.focus_previous()

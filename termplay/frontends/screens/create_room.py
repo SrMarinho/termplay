@@ -62,12 +62,12 @@ class CreateRoomScreen(Screen[None]):
             Label("", id="status"),
         )
 
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
+    def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create":
-            await self._create()
+            self.run_worker(self._create(), exclusive=True)
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        await self._create()
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.run_worker(self._create(), exclusive=True)
 
     async def _create(self) -> None:
         name = self.query_one("#name", Input).value.strip() or "Host"

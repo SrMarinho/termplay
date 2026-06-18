@@ -1,4 +1,4 @@
-"""MultiplayerGameController — Blackjack para múltiplos jogadores."""
+"""MultiplayerGameController — concurrent Blackjack for multiple players."""
 
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ class _PlayerState:
 
 
 class MultiplayerGameController:
-    """Orquestra rodadas de Blackjack com múltiplos jogadores.
+    """Concurrent Blackjack — all players bet and play simultaneously.
 
-    Cada jogador tem transport/renderer próprios.
-    Broadcasts vão para todos; prompts vão apenas ao jogador ativo.
+    Each player gets their own transport/renderer. Table broadcasts go to all
+    players after every action so everyone always sees the current state.
     """
 
     def __init__(
@@ -67,41 +67,43 @@ class MultiplayerGameController:
     async def _play_round(self) -> None:
         deck = Deck()
         deck.shuffle()
-
         active = self._active_players()
 
-        # Bets
-        for player in active:
-            await player.transport.write(player.renderer.bet_prompt(player.balance))
-            bet = await self._get_bet(player)
+        # Send personalised bet prompts and collect bets simultaneously
+        await asyncio.gather(*(
+            p.transport.write(p.renderer.bet_prompt(p.balance)) for p in active
+        ))
+        bets = await asyncio.gather(*(self._get_bet(p) for p in active))
+        for player, bet in zip(active, bets):
             if bet is None:
                 player.active = False
-                continue
-            player.bet = bet
+            else:
+                player.bet = bet
 
         active = self._active_players()
         if not active:
             return
 
-        # Deal: each player + dealer get 2 cards
+        # Deal
         dealer_hand = Hand([deck.draw(), deck.draw()])
         for player in active:
             player.hand = Hand([deck.draw(), deck.draw()])
 
-        # Show initial table to all players
-        await self._broadcast_all_tables(active[0], active, dealer_hand)
+        # Show initial table to all
+        await self._broadcast_tables(active, dealer_hand)
 
-        # Player turns
-        for player in active:
-            await self._broadcast_all_tables(player, active, dealer_hand)
-            await self._play_player_turn(player, dealer_hand, deck, active)
+        # All players take turns concurrently
+        await asyncio.gather(*(
+            self._play_turn(player, dealer_hand, deck, active)
+            for player in active
+        ))
 
-        # Dealer plays (if any player still standing)
+        # Dealer draws
         if any(not p.hand.is_bust for p in active):
             self._rules.dealer_play(dealer_hand, deck)
 
-        # Resolve results, apply balance changes, then broadcast final table
-        player_results: list[tuple[_PlayerState, RoundResult]] = []
+        # Resolve and show results
+        results: list[tuple[_PlayerState, RoundResult]] = []
         for player in active:
             if player.hand.is_bust:
                 res = RoundResult.LOSE
@@ -110,15 +112,56 @@ class MultiplayerGameController:
             else:
                 res = self._rules.resolve(player.hand, dealer_hand)
             self._apply_result(player, res)
-            player_results.append((player, res))
+            results.append((player, res))
 
-        await self._broadcast_all_tables(
-            active[0], active, dealer_hand, reveal_dealer=True
-        )
-        for player, res in player_results:
+        await self._broadcast_tables(active, dealer_hand, reveal_dealer=True)
+        await asyncio.gather(*(
+            p.transport.write(p.renderer.result(res, p.bet, p.balance))
+            for p, res in results
+        ))
+
+    # ── Player turn (runs concurrently per player) ───────────────────────────
+
+    async def _play_turn(
+        self,
+        player: _PlayerState,
+        dealer_hand: Hand,
+        deck: Deck,
+        all_active: list[_PlayerState],
+    ) -> None:
+        while not player.hand.is_bust and not player.hand.is_blackjack:
+            # Always show fresh table then action prompt (no panel → no clear)
+            await self._broadcast_tables(all_active, dealer_hand, acting=player.name)
             await player.transport.write(
-                player.renderer.result(res, player.bet, player.balance)
+                player.renderer.action_prompt(player.hand, player.bet)
             )
+
+            action = await self._get_action(player)
+
+            if action is PlayerAction.QUIT:
+                player.active = False
+                return
+            if action is PlayerAction.STAND:
+                await self._broadcast_tables(all_active, dealer_hand, acting=player.name)
+                break
+            if action is PlayerAction.HIT:
+                self._rules.player_hit(player.hand, deck)
+                await self._broadcast_tables(all_active, dealer_hand, acting=player.name)
+                if player.hand.is_bust:
+                    await player.transport.write(player.renderer.bust())
+                    break
+            elif action is PlayerAction.DOUBLE:
+                if player.hand.can_double and player.balance >= player.bet:
+                    player.bet *= 2
+                    self._rules.player_hit(player.hand, deck)
+                    await self._broadcast_tables(
+                        all_active, dealer_hand, acting=player.name
+                    )
+                    if player.hand.is_bust:
+                        await player.transport.write(player.renderer.bust())
+                    break
+
+    # ── Input helpers ────────────────────────────────────────────────────────
 
     async def _get_bet(self, player: _PlayerState) -> int | None:
         while True:
@@ -132,68 +175,27 @@ class MultiplayerGameController:
                 amount = int(raw)
             except ValueError:
                 await player.transport.write(
-                    player.renderer.error("Valor inválido. Digite um número.")
+                    player.renderer.error("Invalid value. Enter a number.")
                 )
                 continue
             if amount < MIN_BET:
                 await player.transport.write(
-                    player.renderer.error(f"Aposta mínima: {MIN_BET}")
+                    player.renderer.error(f"Minimum bet: {MIN_BET}")
                 )
                 continue
             if amount > player.balance:
                 await player.transport.write(
-                    player.renderer.error(f"Saldo insuficiente: {player.balance}")
+                    player.renderer.error(f"Insufficient balance: {player.balance}")
                 )
                 continue
             return amount
 
-    async def _play_player_turn(
-        self,
-        player: _PlayerState,
-        dealer_hand: Hand,
-        deck: Deck,
-        all_active: list[_PlayerState],
-    ) -> None:
-        while not player.hand.is_bust and not player.hand.is_blackjack:
-            await self._broadcast_all_tables(player, all_active, dealer_hand)
-            action = await self._get_action(player)
-            if action is PlayerAction.QUIT:
-                player.active = False
-                return
-            if action is PlayerAction.STAND:
-                await self._broadcast_all_tables(player, all_active, dealer_hand)
-                break
-            if action is PlayerAction.HIT:
-                self._rules.player_hit(player.hand, deck)
-                if player.hand.is_bust:
-                    await self._broadcast_all_tables(player, all_active, dealer_hand)
-                    await player.transport.write(player.renderer.bust())
-                    break
-            elif action is PlayerAction.DOUBLE:
-                if player.hand.can_double and player.balance >= player.bet:
-                    player.bet *= 2
-                    self._rules.player_hit(player.hand, deck)
-                    await self._broadcast_all_tables(player, all_active, dealer_hand)
-                    if player.hand.is_bust:
-                        await player.transport.write(player.renderer.bust())
-                    break
-
     async def _get_action(self, player: _PlayerState) -> PlayerAction:
-        await player.transport.write(
-            player.renderer.action_prompt(player.hand, player.bet)
-        )
         mapping = {
-            "h": PlayerAction.HIT,
-            "hit": PlayerAction.HIT,
-            "1": PlayerAction.HIT,
-            "s": PlayerAction.STAND,
-            "stand": PlayerAction.STAND,
-            "2": PlayerAction.STAND,
-            "d": PlayerAction.DOUBLE,
-            "double": PlayerAction.DOUBLE,
-            "3": PlayerAction.DOUBLE,
-            "q": PlayerAction.QUIT,
-            "quit": PlayerAction.QUIT,
+            "h": PlayerAction.HIT,   "hit":    PlayerAction.HIT,   "1": PlayerAction.HIT,
+            "s": PlayerAction.STAND, "stand":  PlayerAction.STAND, "2": PlayerAction.STAND,
+            "d": PlayerAction.DOUBLE,"double": PlayerAction.DOUBLE,"3": PlayerAction.DOUBLE,
+            "q": PlayerAction.QUIT,  "quit":   PlayerAction.QUIT,
         }
         while True:
             try:
@@ -203,42 +205,20 @@ class MultiplayerGameController:
             if raw in mapping:
                 return mapping[raw]
             await player.transport.write(
-                player.renderer.error("Use: h=hit  s=stand  d=double  q=sair")
+                player.renderer.error("Use: h=hit  s=stand  d=double  q=quit")
             )
 
-    def _apply_result(self, player: _PlayerState, result: RoundResult) -> None:
-        if result is RoundResult.WIN:
-            player.balance += player.bet
-        elif result is RoundResult.LOSE:
-            player.balance -= player.bet
-        elif result is RoundResult.BLACKJACK:
-            player.balance += int(player.bet * BLACKJACK_PAYOUT)
+    # ── Broadcast helpers ────────────────────────────────────────────────────
 
-    async def _ask_continue(self) -> bool:
-        active = self._active_players()
-        if not active:
-            return False
-
-        results: list[bool] = []
-
-        async def ask_one(player: _PlayerState) -> None:
-            await player.transport.write(player.renderer.prompt("Continuar? (s/n): "))
-            try:
-                raw = (await player.transport.read_line()).strip().lower()
-                results.append(raw in ("s", "sim", "y", "yes", ""))
-            except ConnectionError:
-                results.append(False)
-
-        await asyncio.gather(*(ask_one(p) for p in active))
-        return any(results)
-
-    async def _broadcast_all_tables(
+    async def _broadcast_tables(
         self,
-        active_player: _PlayerState,
         all_active: list[_PlayerState],
         dealer_hand: Hand,
+        *,
+        acting: str = "",
         reveal_dealer: bool = False,
     ) -> None:
+        """Send each player a table view with their own perspective."""
         async def send_to(viewer: _PlayerState) -> None:
             others = [(p.name, p.hand) for p in all_active if p is not viewer]
             await viewer.transport.write(
@@ -249,7 +229,7 @@ class MultiplayerGameController:
                     balance=viewer.balance,
                     bet=viewer.bet,
                     others=others,
-                    active_name=active_player.name,
+                    active_name=acting,
                     reveal_dealer=reveal_dealer,
                 )
             )
@@ -258,6 +238,34 @@ class MultiplayerGameController:
 
     async def _broadcast(self, text: str) -> None:
         await asyncio.gather(*(p.transport.write(text) for p in self._players))
+
+    # ── Continue / utils ─────────────────────────────────────────────────────
+
+    async def _ask_continue(self) -> bool:
+        active = self._active_players()
+        if not active:
+            return False
+
+        results: list[bool] = []
+
+        async def ask_one(player: _PlayerState) -> None:
+            await player.transport.write(player.renderer.prompt("Continue? (s/n): "))
+            try:
+                raw = (await player.transport.read_line()).strip().lower()
+                results.append(raw in ("s", "sim", "y", "yes", ""))
+            except ConnectionError:
+                results.append(False)
+
+        await asyncio.gather(*(ask_one(p) for p in active))
+        return any(results)
+
+    def _apply_result(self, player: _PlayerState, result: RoundResult) -> None:
+        if result is RoundResult.WIN:
+            player.balance += player.bet
+        elif result is RoundResult.LOSE:
+            player.balance -= player.bet
+        elif result is RoundResult.BLACKJACK:
+            player.balance += int(player.bet * BLACKJACK_PAYOUT)
 
     def _active_players(self) -> list[_PlayerState]:
         return [p for p in self._players if p.active]

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from rich.align import Align
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Header, Input, RichLog, Static
 
@@ -35,15 +34,10 @@ def _nick_color(name: str) -> str:
 
 def _chat_renderable(name: str, text: str, is_mine: bool) -> object:
     if is_mine:
-        msg = Text(f" {text} ", style="white on dark_blue", justify="right")
-        byline = Text(f" {name} ", style="dim", justify="right")
-        combined = Text.assemble(byline, "\n", msg)
-        return Align.right(combined)
-    color = _nick_color(name)
-    return Text.assemble(
-        Text(f"{name}", style=f"bold {color}"),
-        Text(f"  {text}", style="white"),
-    )
+        nick = Text(f"{name}", style="bold white on dark_blue")
+    else:
+        nick = Text(f"{name}", style=f"bold {_nick_color(name)}")
+    return Text.assemble(nick, Text(f": {text}", style="white"))
 
 
 class WaitingRoomScreen(Screen[None]):
@@ -54,8 +48,17 @@ class WaitingRoomScreen(Screen[None]):
     ]
 
     DEFAULT_CSS = """
-    WaitingRoomScreen Vertical {
+    WaitingRoomScreen #layout {
+        height: 1fr;
+    }
+    WaitingRoomScreen #left {
+        width: 55;
+        min-width: 40;
         padding: 1 2;
+        border-right: solid $primary;
+    }
+    WaitingRoomScreen #right {
+        padding: 1 1;
     }
     WaitingRoomScreen #code {
         text-style: bold;
@@ -63,15 +66,19 @@ class WaitingRoomScreen(Screen[None]):
     }
     WaitingRoomScreen #players {
         border: round $primary;
-        height: auto;
-        min-height: 6;
+        height: 1fr;
         padding: 0 1;
+    }
+    WaitingRoomScreen #start {
+        margin-top: 1;
+        width: 1fr;
     }
     WaitingRoomScreen #chat {
         height: 1fr;
         border: round $secondary;
     }
-    WaitingRoomScreen #start {
+    WaitingRoomScreen #chat-input {
+        height: auto;
         margin-top: 1;
     }
     """
@@ -87,19 +94,19 @@ class WaitingRoomScreen(Screen[None]):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Vertical():
-            yield Static("Sala: ----", id="code")
-            if self._is_host and self._host_addr:
-                yield Static(
-                    f"Compartilhe: {self._host_addr}", id="share"
-                )
-            yield Static("Aguardando...", id="players")
-            yield RichLog(id="chat", markup=False, highlight=False, wrap=True)
-            if self._is_host:
-                yield Button(
-                    "Iniciar Partida", id="start", variant="success", disabled=True
-                )
-            yield Input(placeholder="Mensagem de chat...", id="chat-input")
+        with Horizontal(id="layout"):
+            with Vertical(id="left"):
+                yield Static("Sala: ----", id="code")
+                if self._is_host and self._host_addr:
+                    yield Static(f"Compartilhe: {self._host_addr}", id="share")
+                yield Static("Aguardando...", id="players")
+                if self._is_host:
+                    yield Button(
+                        "Iniciar Partida", id="start", variant="success", disabled=True
+                    )
+            with Vertical(id="right"):
+                yield RichLog(id="chat", markup=False, highlight=False, wrap=True)
+                yield Input(placeholder="Mensagem de chat...", id="chat-input")
 
     def on_mount(self) -> None:
         app = cast("TermplayTUIApp", self.app)
@@ -108,6 +115,7 @@ class WaitingRoomScreen(Screen[None]):
         for msg in self._pending:
             self.run_worker(self.on_server_message(msg))
         self._pending.clear()
+        self.query_one("#chat-input", Input).focus()
 
     # ── Mensagens do servidor ────────────────────────────────────────────────
 
@@ -130,7 +138,9 @@ class WaitingRoomScreen(Screen[None]):
         elif mtype == TYPE_GAME_START:
             from termplay.frontends.screens.mp_game import MpGameScreen
 
-            self.app.push_screen(MpGameScreen())
+            mp = MpGameScreen()
+            cast("TermplayTUIApp", self.app).set_message_handler(mp.on_server_message)
+            self.app.push_screen(mp)
         elif mtype == TYPE_ERROR:
             self.query_one("#chat", RichLog).write(f"[erro] {msg.get('message')}")
             if msg.get("fatal"):

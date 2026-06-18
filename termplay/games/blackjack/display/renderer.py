@@ -204,22 +204,11 @@ class RichRenderer:
         )
 
     def action_prompt(self, hand: Hand, bet: int) -> str:
-        opts = [
-            ("[1]", "Hit"),
-            ("[2]", "Stand"),
-        ]
+        opts = [("[1]", "Hit"), ("[2]", "Stand")]
         if hand.can_double:
             opts.append(("[3]", f"Double (x2 = {bet * 2})"))
-
         line = "  ".join(f"[bold cyan]{k}[/] [white]{v}[/]" for k, v in opts)
-        return _render_console(
-            Panel(
-                f"[yellow]Sua vez![/]\n\n{line}\n\n[dim]Digite o comando:[/]",
-                title="👤 Ação",
-                border_style="yellow",
-            ),
-            "",
-        )
+        return _render_console(f"[yellow]▶ Sua vez![/]  {line}")
 
     def result(self, result: RoundResult, bet: int, balance: int) -> str:
         mapping: dict[RoundResult, tuple[str, str]] = {

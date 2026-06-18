@@ -1,252 +1,268 @@
-# py21ssh — Especificação Técnica (SPEC)
+# termplay — Technical Specification (SPEC)
 
-## 1. Visão Geral
+## 1. Overview
 
-**py21ssh** é um servidor de Blackjack (21) jogável via TCP puro.
-O cliente conecta com `nc <host> <port>` e cai direto no jogo —
-sem shell, sem SSH, sem web.
+**termplay** is a multiplayer card-game platform playable entirely in the terminal.
+Players run `uv run termplay` and get a full Textual TUI — game lobby, LAN room discovery,
+real-time chat, and concurrent multiplayer rounds.
 
-**Público-alvo**: intranet corporativa, LAN doméstica, VPN.
+The engine is transport-agnostic: game logic knows nothing about Textual, TCP, or JSON.
+New games and new frontends can be added independently.
 
-## 2. Requisitos
+**Target audience**: LAN parties, intranet, local development.
 
-### Funcionais
+---
 
-| ID | Descrição | Prioridade |
-|----|-----------|------------|
-| F1 | Distribuir 2 cartas para jogador e dealer | Alta |
-| F2 | Jogador pode Hit (comprar carta) | Alta |
-| F3 | Jogador pode Stand (parar) | Alta |
-| F4 | Jogador pode Double Down (dobrar aposta, 1 carta) | Média |
-| F5 | Dealer compra até 17 (stand em soft 17) | Alta |
-| F6 | Blackjack natural (A+10/J/Q/K) paga 3:2 | Alta |
-| F7 | Sistema de fichas (saldo inicial 1000) | Média |
-| F8 | Validação de aposta (mínimo 1, máximo = saldo) | Alta |
-| F9 | Tratamento de Ás (11 → 1 se estourar) | Alta |
-| F10 | Múltiplas sessões simultâneas | Média |
-| F11 | Limite de sessões configurável | Baixa |
-| F12 | Timeout de inatividade (300s) | Média |
+## 2. Functional Requirements
 
-### Não-funcionais
+| ID | Description | Priority |
+|----|-------------|----------|
+| F1 | Solo Blackjack via TUI (full session) | High |
+| F2 | Create a multiplayer room (embedded P2P server) | High |
+| F3 | Discover LAN rooms via UDP broadcast | High |
+| F4 | Join a room by selecting from live discovery table | High |
+| F5 | Manual IP/port fallback for join | Medium |
+| F6 | Real-time waiting room with WhatsApp-style chat | High |
+| F7 | Host starts game when ≥ 2 players present | High |
+| F8 | All players bet simultaneously (concurrent) | High |
+| F9 | All players take turns simultaneously (concurrent) | High |
+| F10 | Table broadcast to all players after every action | High |
+| F11 | Hit / Stand / Double Down per player | High |
+| F12 | Dealer draws to 17 (stand on soft 17) | High |
+| F13 | Natural Blackjack pays 3:2 | High |
+| F14 | Ace adjusts 11 → 1 to avoid bust | High |
+| F15 | Starting balance 1000, min bet 1 | Medium |
+| F16 | Game selection screen (extensible registry) | Medium |
+| F17 | Last-used host/port persisted across sessions | Low |
 
-| ID | Descrição |
-|----|-----------|
-| NF1 | Zero shell: não spawna `/bin/sh`, `subprocess`, `Popen` |
-| NF2 | Zero eval: entrada do usuário nunca passa por `eval()`/`exec()` |
-| NF3 | Conexão criptografável via TLS (futuro) ou WireGuard (externo) |
-| NF4 | Tipagem estática: `mypy --strict` sem erros |
-| NF5 | Layer architecture: Domain → Application → Transport → Display |
-| NF6 | SOLID: DIP, OCP, SRP aplicados nas camadas |
-| NF7 | Testes unitários para Domain (49) e Transport (16) |
+---
 
-## 3. Arquitetura
+## 3. Non-Functional Requirements
 
-### 3.1 Camadas
+| ID | Description |
+|----|-------------|
+| NF1 | No shell: no `subprocess`, `Popen`, `os.system`, `pty.spawn` |
+| NF2 | No eval: user input never touches `eval()` / `exec()` |
+| NF3 | Static typing: `mypy --strict` zero errors |
+| NF4 | Layered architecture: Domain → Engine → Games → Frontends |
+| NF5 | Engine has zero UI imports (pure network + asyncio logic) |
+| NF6 | Games have zero frontend imports (pure game logic) |
+| NF7 | 111 tests, all passing |
 
-```
-┌─────────────────────────────────────────────┐
-│              DISPLAY (RichRenderer)         │
-│  ANSI escape sequences via Rich             │
-├─────────────────────────────────────────────┤
-│            APPLICATION (GameController)      │
-│  Orquestração do jogo, dependente de        │
-│  interfaces (DIP)                           │
-├─────────────────────────────────────────────┤
-│              TRANSPORT (TCPAdapter)          │
-│  asyncio.StreamReader/Writer → ITransport   │
-│  Sem shell, sem subprocess                  │
-├─────────────────────────────────────────────┤
-│               DOMAIN (Card, Deck, Hand)     │
-│  Regras de negócio puras, zero I/O          │
-└─────────────────────────────────────────────┘
-```
+---
 
-### 3.2 SOLID aplicado
+## 4. Architecture
 
-| Princípio | Exemplo |
-|-----------|---------|
-| **SRP** | `Card` só modela carta. `Deck` só gerencia baralho. `TCPAdapter` só faz I/O. |
-| **OCP** | Nova regra de jogo? Implementa `IGameRules`. Novo transporte? Implementa `ITransportAdapter`. |
-| **LSP** | Qualquer implementação de `ITransportAdapter` substitui a original sem quebrar o controller. |
-| **ISP** | Interfaces pequenas: `ITransportAdapter` tem 4 métodos. `IDisplayRenderer` tem 10 métodos específicos. |
-| **DIP** | `GameController` recebe interfaces por injeção, nunca instancia TCP ou renderer concreto. |
-
-### 3.3 Fluxo de Conexão
+### 4.1 Layer Diagram
 
 ```
-Cliente (nc)          Servidor (py21ssh)
-    │                        │
-    ├── TCP connect ────────▶│
-    │                        ├── TCPServer._on_connect()
-    │                        │   ├── verifica limite de sessões
-    │                        │   ├── cria TCPAdapter
-    │                        │   ├── cria RichRenderer
-    │                        │   └── cria asyncio.Task
-    │                        │
-    │◀── ANSI: welcome ─────│
-    │─── aposta: "100" ────▶│
-    │◀── ANSI: mesa ────────│
-    │─── ação: "h" ────────▶│
-    │◀── ANSI: mesa ────────│
-    │─── ação: "s" ────────▶│
-    │◀── ANSI: resultado ───│
-    │─── "s" (continuar) ──▶│
-    │◀── ANSI: goodbye ─────│
-    │                        ├── adapter.close()
-    │◀── TCP close ─────────│
+┌──────────────────────────────────────────────────────────┐
+│  FRONTENDS  (termplay/frontends/)                        │
+│  Textual TUI — screens, widgets, textual_app.py          │
+│  TextualTransportAdapter — solo game I/O bridge          │
+├──────────────────────────────────────────────────────────┤
+│  ENGINE  (termplay/engine/)                              │
+│  TermPlayServer — TCP P2P server (host embeds it)        │
+│  ProtocolServerAdapter — JSON protocol over TCP          │
+│  QueuedAdapter — relay between socket and game loop      │
+│  RoomManager — room lifecycle (create / join / remove)   │
+│  RoomBroadcaster — UDP beacon every 2s (SO_BROADCAST)    │
+│  RoomDiscoverer  — UDP listener, TTL-6s room list        │
+│  GameRegistry — plugin registry (@register decorator)    │
+├──────────────────────────────────────────────────────────┤
+│  GAMES  (termplay/games/<name>/)                         │
+│  Blackjack: domain/, display/, application/              │
+│  IGame interface — engine only talks to this             │
+├──────────────────────────────────────────────────────────┤
+│  CONFIG  (termplay/config/)                              │
+│  settings.py — nickname, last_host/port (JSON file)      │
+└──────────────────────────────────────────────────────────┘
 ```
 
-## 4. Segurança
+### 4.2 Import Rules
 
-### 4.1 Isolamento do Adaptador TCP
+```
+domain/        →  stdlib only
+engine/        →  domain/ + stdlib + asyncio  (NO frontend imports)
+games/*/       →  engine/interfaces + domain/ (NO frontend imports)
+frontends/     →  engine/ + games/ + textual
+config/        →  stdlib only
+```
 
-O `TCPAdapter` é a única ponte entre o cliente e o jogo.
-Ele **não possui** nenhum mecanismo de escape:
+### 4.3 LAN Multiplayer Flow
+
+```
+Host TUI                    Server (embedded)           Guest TUI
+───────────────             ─────────────────           ──────────────
+push_screen_wait            start()                     RoomDiscoverer
+  GameSelectScreen            broadcaster.run()    ←──  sees beacon
+    → game_name=...
+start_embedded_server       TermPlayServer              join: selects room
+connect("127.0.0.1", port)                              connect(ip, port)
+ACTION_CREATE_ROOM   ──────▶ _host_flow()
+                              RoomManager.create()
+                              broadcaster.update(...)
+                                                   ◀── ACTION_JOIN_ROOM
+WaitingRoomScreen    ◀──── TYPE_ROOM_STATE ────────▶   WaitingRoomScreen
+  (chat, players)                                         (chat, players)
+ACTION_START_GAME    ──────▶ room.ready.set()
+                              TYPE_GAME_START ─────▶     MpGameScreen
+MpGameScreen                  _run_controller()
+  concurrent bet/play ◀──── TYPE_GAME_RENDER ─────▶     concurrent bet/play
+```
+
+### 4.4 Concurrent Round Flow
+
+```
+_play_round()
+  │
+  ├── asyncio.gather(bet_prompt for each player)       # simultaneous
+  ├── asyncio.gather(_get_bet for each player)         # simultaneous
+  │
+  ├── deal cards
+  ├── broadcast initial table to all
+  │
+  ├── asyncio.gather(_play_turn for each player)       # simultaneous
+  │     each turn:
+  │       broadcast_tables(all) → action_prompt(player)
+  │       → get_action → hit/stand/double
+  │       → broadcast_tables(all) after each action
+  │
+  ├── dealer draws
+  ├── resolve all results
+  └── broadcast final table + individual results
+```
+
+---
+
+## 5. Protocol (Engine ↔ TUI)
+
+All messages are newline-delimited JSON over TCP.
+
+### Client → Server (actions)
+
+| `action` | Fields | Description |
+|----------|--------|-------------|
+| `create_room` | `name` | Host creates room |
+| `join_room` | `name`, `code` | Guest joins (code="" = auto-join first room) |
+| `start_game` | — | Host starts game |
+| `game_input` | `text` | In-game input (bet, hit/stand/double) |
+| `chat` | `text` | Chat message |
+| `leave` | — | Leave room |
+
+### Server → Client (types)
+
+| `type` | Fields | Description |
+|--------|--------|-------------|
+| `room_created` | `code`, `you` | Room created confirmation |
+| `room_joined` | `code`, `you` | Join confirmation |
+| `room_state` | `players`, `can_start`, ... | Lobby update |
+| `game_start` | — | Game is starting |
+| `game_render` | `content` | ANSI render (table, prompts) |
+| `game_over` | — | Game ended |
+| `chat` | `name`, `text` | Chat message broadcast |
+| `error` | `message`, `fatal` | Error (fatal=true closes connection) |
+
+---
+
+## 6. LAN Discovery
+
+```
+Server (broadcaster)                    Clients (discoverer)
+─────────────────────                   ────────────────────
+socket UDP SO_BROADCAST                 socket UDP listen 0.0.0.0:4444
+every 2s → sendto(                      datagram_received():
+  255.255.255.255:4444,                   parse JSON → DiscoveredRoom
+  JSON{host,game,players,                 rooms[ip] = room
+       max_players,status,port}         )
+)
+                                        rooms() → filter TTL < 6s
+```
+
+**Cross-platform**: `reuse_port=hasattr(socket, "SO_REUSEPORT")` (Linux/macOS only).
+
+---
+
+## 7. Game Plugin System
 
 ```python
-# O que NÃO existe no código:
-import subprocess       # ❌
-os.system()             # ❌
-eval() / exec()          # ❌
-pty.spawn()             # ❌
+# termplay/games/blackjack/plugin.py
+from termplay.engine.registry import GameRegistry
+
+@GameRegistry.register("blackjack", "Classic casino card game")
+class BlackjackGame(IGame):
+    async def run(self, transport: ITransportAdapter) -> None: ...
 ```
 
-### 4.2 Validação de entrada
+`GameSelectScreen` calls `GameRegistry.list_games()` to populate the table.
+Adding a new game = new directory + `@register` decorator + import in `textual_app.py`.
 
-Toda entrada do usuário passa por validação antes de ser usada:
+---
 
-| Entrada | Validação |
-|---------|-----------|
-| Aposta | `int()` com try/except, range check (≥1, ≤saldo) |
-| Ação | match contra `{"h","hit","1","s","stand","2","d","double","3"}` |
-| Continuar | match contra `{"s","sim","y","yes",""}` |
+## 8. Key Files
 
-### 4.3 Mitigação de Ataques
+| File | Role |
+|------|------|
+| `termplay/frontends/textual_app.py` | App root, server lifecycle, message dispatch |
+| `termplay/frontends/screens/home.py` | Main menu |
+| `termplay/frontends/screens/multiplayer_menu.py` | Create / Join |
+| `termplay/frontends/screens/create_room.py` | Game select → start server → waiting room |
+| `termplay/frontends/screens/join_room.py` | LAN discovery table + manual fallback |
+| `termplay/frontends/screens/waiting_room.py` | Lobby + WhatsApp chat |
+| `termplay/frontends/screens/mp_game.py` | In-game render + action buttons |
+| `termplay/frontends/screens/game_select.py` | Game list (solo or modal select) |
+| `termplay/engine/server.py` | TCP P2P server + room coordinator |
+| `termplay/engine/discovery.py` | UDP broadcast + discovery |
+| `termplay/engine/room.py` | RoomManager, RoomPlayer |
+| `termplay/engine/protocol_adapter.py` | JSON protocol adapter (server-side) |
+| `termplay/engine/registry.py` | GameRegistry plugin system |
+| `termplay/games/blackjack/application/multiplayer_controller.py` | Concurrent round orchestration |
+| `termplay/games/blackjack/display/renderer.py` | ANSI renders via Rich |
 
-| Ameaça | Mitigação |
-|--------|-----------|
-| Cliente digitar comandos shell | Não existe shell pra interpretar. Vira entrada inválida. |
-| Buffer overflow | `asyncio.StreamReader` gerencia buffers internamente |
-| DoS por muitas conexões | `max_concurrent` limita sessões simultâneas |
-| Conexão ociosa | Timeout de 300s por `asyncio.wait_for` |
-| Escrita em socket fechado | `_closed` flag + early return + log warning |
+---
 
-## 5. Dependências
+## 9. Dependencies
 
-| Pacote | Versão | Uso |
-|--------|--------|-----|
-| `rich>=13.0` | Produção | Renderização ANSI (via console com `force_terminal=True`) |
-| `pytest>=8.0` | Dev | Testes unitários |
-| `pytest-asyncio>=0.24` | Dev | Testes de corrotinas |
-| `mypy>=1.8` | Dev | Type checking strict |
-| `ruff>=0.3` | Dev | Linter + formatter |
-| `pre-commit>=3.6` | Dev | Git hooks |
+| Package | Version | Use |
+|---------|---------|-----|
+| `textual>=0.70` | Production | TUI framework |
+| `rich>=13.0` | Production | ANSI rendering |
+| `pytest>=8.0` | Dev | Unit tests |
+| `pytest-asyncio>=0.24` | Dev | Async test support |
+| `mypy>=1.8` | Dev | Strict type checking |
+| `ruff>=0.3` | Dev | Lint + format |
 
-**Zero dependências de rede**: o transporte é `asyncio` puro da stdlib.
+---
 
-## 6. API de Camadas
+## 10. Tests
 
-### 6.1 Domain
+| Suite | File | Count |
+|-------|------|-------|
+| Domain: Card | `test_domain/test_card.py` | 11 |
+| Domain: Deck | `test_domain/test_deck.py` | 8 |
+| Domain: Hand | `test_domain/test_hand.py` | 14 |
+| Domain: Rules | `test_domain/test_rules.py` | 12 |
+| Transport: TCP | `test_transport/test_tcp_adapter.py` | 16 |
+| Transport: Queued | `test_transport/test_queued_adapter.py` | ~10 |
+| Engine | `test_engine/` | ~20 |
+| Config | `test_config/` | ~10 |
+| Frontends | `test_frontends/` | ~10 |
+| **Total** | | **111** |
 
-```python
-class Card:
-    suit: Suit       # HEARTS, DIAMONDS, CLUBS, SPADES
-    rank: Rank       # A, 2-10, J, Q, K
-    value -> int     # 1-11
-    is_ace -> bool
-    display -> str   # "A♠", "K♥"
+---
 
-class Deck:
-    shuffle()
-    draw() -> Card
-    remaining -> int
-    is_empty -> bool
+## 11. Security
 
-class Hand:
-    add(card: Card)
-    value -> int     # com ajuste de Ás
-    is_bust -> bool
-    is_blackjack -> bool
-    can_double -> bool
+| Threat | Mitigation |
+|--------|------------|
+| Shell injection | No shell exists. Input is JSON-parsed, then matched against whitelist. |
+| Buffer overflow | `asyncio.StreamReader` manages buffers internally. |
+| Malformed JSON | `try/except ValueError` in `recv_control()` → returns `{}` (ignored). |
+| Idle connections | Guest loop has `asyncio.wait_for(timeout=0.3)` polling `room.ready`. |
+| Socket write after close | `writer.is_closing()` guard in `send_control`. |
 
-class BlackjackRules:
-    initial_deal(deck) -> tuple[Hand, Hand]
-    player_hit(hand, deck)
-    dealer_play(hand, deck)
-    resolve(player, dealer) -> RoundResult
-```
+---
 
-### 6.2 Transport
-
-```python
-class TCPAdapter:
-    async write(text: str)
-    async read_line() -> str
-    async read_char() -> str
-    terminal_width -> int
-    async close()
-
-class TCPServer:
-    async start()
-    async serve_forever()
-    async stop()
-```
-
-### 6.3 Display
-
-```python
-class RichRenderer:
-    welcome() -> str
-    table(player, dealer, balance, bet, ...) -> str
-    bet_prompt(balance) -> str
-    action_prompt(hand, bet) -> str
-    result(result, bet, balance) -> str
-    bust() -> str
-    goodbye(balance) -> str
-    error(message) -> str
-    prompt(message) -> str
-```
-
-## 7. Testes
-
-| Suite | Arquivos | Testes |
-|-------|----------|--------|
-| Domain: Card | `test_card.py` | 11 |
-| Domain: Deck | `test_deck.py` | 8 |
-| Domain: Hand | `test_hand.py` | 14 |
-| Domain: Rules | `test_rules.py` | 12 |
-| Transport: Isolation | `test_tcp_adapter.py` | 2 |
-| Transport: I/O | `test_tcp_adapter.py` | 14 |
-| **Total** | | **65** |
-
-## 8. Clientes e Transportes
-
-### 8.1 Cliente
-
-O servidor aceita qualquer cliente TCP bruto. Opções:
-
-| Cliente | Comando | Plataforma |
-|---------|---------|------------|
-| **netcat** | `nc <host> 4443` | Linux/macOS |
-| **ncat** | `ncat <host> 4443` | Windows (via nmap) |
-| **Python client** | `uv run python client.py` | Windows (zero instalação) |
-| **Telnet** | `telnet <host> 4443` | Linux/Windows |
-| **PowerShell** | `TcpClient` | Windows (manual) |
-
-O arquivo `client.py` na raiz do projeto é um cliente TCP mínimo que
-resolve `asyncio.open_connection` + stdin/stdout forwarding.
-
-### 8.2 Transportes Futuros
-
-A arquitetura em camadas permite adicionar novos transportes
-sem modificar domain, application ou display:
-
-| Transporte | Implementação | Mudança necessária |
-|------------|---------------|--------------------|
-| **SSH (asyncssh)** | `SSHAdapter(ITransportAdapter)` | `transport/ssh_adapter.py` + `SSHServer` |
-| **WebSocket** | `WSAdapter(ITransportAdapter)` | `transport/ws_adapter.py` + `WSServer` |
-| **TLS** | `TLSAdapter(ITransportAdapter)` | Reusa `TCPAdapter` com `ssl_context` |
-
-## 9. Licença
+## 12. License
 
 MIT
