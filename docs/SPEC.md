@@ -161,6 +161,16 @@ All messages are newline-delimited JSON over TCP.
 | `chat` | `text` | Chat message |
 | `leave` | — | Leave room |
 
+**Render channel is the game↔frontend API.** The engine relays whatever a
+controller writes; the *game* defines the `content` schema. Blackjack/Forca/Velha
+emit ANSI strings (rendered into a `RichLog`). **Uno** emits a structured JSON
+snapshot per player — `{top, color, direction, current, you, players, hand,
+playable, your_turn, need_color, winner}` — and the client (`UnoGameScreen`)
+renders it with native widgets. The client holds **no game logic**: it never
+computes legality (server sends the `playable` list), only displays state and
+forwards raw input (`"3"`, `"d"`, `"R"`) over `game_input`. Any frontend consuming
+the same payload behaves identically.
+
 ### Server → Client (types)
 
 | `type` | Fields | Description |
@@ -169,7 +179,7 @@ All messages are newline-delimited JSON over TCP.
 | `room_joined` | `code`, `you` | Join confirmation |
 | `room_state` | `players`, `can_start`, ... | Lobby update |
 | `game_start` | `game` | Game is starting (`game` = registered name) |
-| `game_render` | `content` | ANSI render (table, prompts) |
+| `game_render` | `content` | Game-defined payload: ANSI render **or** structured JSON state |
 | `game_over` | — | Game ended |
 | `chat` | `name`, `text` | Chat message broadcast |
 | `error` | `message`, `fatal` | Error (fatal=true closes connection) |

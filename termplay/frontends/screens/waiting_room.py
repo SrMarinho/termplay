@@ -136,12 +136,22 @@ class WaitingRoomScreen(Screen[None]):
                 _chat_renderable(sender, text, sender == self._my_name)
             )
         elif mtype == TYPE_GAME_START:
-            from termplay.frontends.screens.mp_game import MpGameScreen
-
             game = str(msg.get("game") or "blackjack")
-            mp = MpGameScreen(game=game)
-            cast("TermplayTUIApp", self.app).set_message_handler(mp.on_server_message)
-            self.app.push_screen(mp)
+            from termplay.config.settings import get_stealth
+
+            screen: Screen[Any]
+            if game.lower() == "uno" and not get_stealth():
+                from termplay.frontends.screens.uno_screen import UnoGameScreen
+
+                screen = UnoGameScreen()
+            else:
+                from termplay.frontends.screens.mp_game import MpGameScreen
+
+                screen = MpGameScreen(game=game)
+            cast("TermplayTUIApp", self.app).set_message_handler(
+                screen.on_server_message
+            )
+            self.app.push_screen(screen)
         elif mtype == TYPE_ERROR:
             self.query_one("#chat", RichLog).write(f"[erro] {msg.get('message')}")
             if msg.get("fatal"):
