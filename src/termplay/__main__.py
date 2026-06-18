@@ -63,7 +63,7 @@ async def run_server(host: str, port: int) -> None:
     ip = "127.0.0.1" if host == "0.0.0.0" else host
     print(f"termplay (protocolo) rodando em {host}:{port}")
     print("   Conecte com o cliente TUI:")
-    print(f"     uv run termplay-tui   (host {ip}, porta {port})")
+    print(f"     uv run termplay   (host {ip}, porta {port})")
     print("\nPressione Ctrl+C para parar.")
 
     try:

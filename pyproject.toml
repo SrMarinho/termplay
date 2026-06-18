@@ -1,18 +1,20 @@
 [project]
 name = "termplay"
 version = "0.1.0"
-description = "Engine de jogos via TCP/SSH — extensível por plugins"
+description = "Engine de jogos via TCP — extensível por plugins"
+readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "Matheus Marinho"}]
 
 dependencies = [
     "rich>=13.0",
     "textual>=0.50",
+    "typing-extensions>=4.0",
 ]
 
 [project.scripts]
-termplay = "termplay.__main__:main"
-termplay-tui = "termplay.frontends.textual_app:main"
+termplay = "termplay.frontends.textual_app:main"
+termplay-server = "termplay.__main__:main"
 
 [project.optional-dependencies]
 dev = [

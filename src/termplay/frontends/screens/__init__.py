@@ -1,1 +1,1 @@
-"""Textual screens para termplay-tui."""
+"""Textual screens para o cliente termplay."""

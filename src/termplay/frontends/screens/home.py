@@ -1,4 +1,4 @@
-"""HomeScreen — tela inicial do termplay-tui."""
+"""HomeScreen — tela inicial do cliente termplay."""
 
 from __future__ import annotations
 
