@@ -2,12 +2,16 @@
 
 ## 1. Overview
 
-**termplay** is a multiplayer card-game platform playable entirely in the terminal.
+**termplay** is a multiplayer game platform playable entirely in the terminal.
 Players run `uv run termplay` and get a full Textual TUI — game lobby, LAN room discovery,
 real-time chat, and concurrent multiplayer rounds.
 
+Bundled games: **Blackjack** (concurrent betting), **Forca** (Hangman),
+**Velha** (Tic-tac-toe) and **Uno** — all playable over the same multiplayer engine.
+
 The engine is transport-agnostic: game logic knows nothing about Textual, TCP, or JSON.
-New games and new frontends can be added independently.
+New games and new frontends can be added independently. A **disguise mode** renders any
+game as scrolling server-log lines (`[INFO ] ...`) for discreet play.
 
 **Target audience**: LAN parties, intranet, local development.
 
@@ -34,6 +38,11 @@ New games and new frontends can be added independently.
 | F15 | Starting balance 1000, min bet 1 | Medium |
 | F16 | Game selection screen (extensible registry) | Medium |
 | F17 | Last-used host/port persisted across sessions | Low |
+| F18 | Forca (Hangman): shared word, turn-based letter/word guessing | High |
+| F19 | Velha (Tic-tac-toe): two-player marks, 3-in-a-row win | High |
+| F20 | Uno: color/value matching, action cards, empty hand wins | High |
+| F21 | Disguise mode: per-player server-log rendering, persisted | Medium |
+| F22 | Multiplayer dispatch by game name (MultiplayerRegistry) | High |
 
 ---
 
@@ -47,7 +56,7 @@ New games and new frontends can be added independently.
 | NF4 | Layered architecture: Domain → Engine → Games → Frontends |
 | NF5 | Engine has zero UI imports (pure network + asyncio logic) |
 | NF6 | Games have zero frontend imports (pure game logic) |
-| NF7 | 111 tests, all passing |
+| NF7 | 115 tests, all passing |
 
 ---
 
@@ -68,11 +77,13 @@ New games and new frontends can be added independently.
 │  RoomManager — room lifecycle (create / join / remove)   │
 │  RoomBroadcaster — UDP beacon every 2s (SO_BROADCAST)    │
 │  RoomDiscoverer  — UDP listener, TTL-6s room list        │
-│  GameRegistry — plugin registry (@register decorator)    │
+│  GameRegistry — solo plugin registry (@register)         │
+│  MultiplayerRegistry — multiplayer controllers by name   │
 ├──────────────────────────────────────────────────────────┤
 │  GAMES  (termplay/games/<name>/)                         │
-│  Blackjack: domain/, display/, application/              │
-│  IGame interface — engine only talks to this             │
+│  blackjack/ hangman/ tictactoe/ uno/                     │
+│  IGame (solo) + controller (multiplayer) per game        │
+│  Per-player RichRenderer or LogRenderer (disguise)       │
 ├──────────────────────────────────────────────────────────┤
 │  CONFIG  (termplay/config/)                              │
 │  settings.py — nickname, last_host/port (JSON file)      │
@@ -143,8 +154,8 @@ All messages are newline-delimited JSON over TCP.
 
 | `action` | Fields | Description |
 |----------|--------|-------------|
-| `create_room` | `name` | Host creates room |
-| `join_room` | `name`, `code` | Guest joins (code="" = auto-join first room) |
+| `create_room` | `name`, `stealth` | Host creates room (`stealth` = disguise mode) |
+| `join_room` | `name`, `code`, `stealth` | Guest joins (code="" = auto-join first room) |
 | `start_game` | — | Host starts game |
 | `game_input` | `text` | In-game input (bet, hit/stand/double) |
 | `chat` | `text` | Chat message |
@@ -157,7 +168,7 @@ All messages are newline-delimited JSON over TCP.
 | `room_created` | `code`, `you` | Room created confirmation |
 | `room_joined` | `code`, `you` | Join confirmation |
 | `room_state` | `players`, `can_start`, ... | Lobby update |
-| `game_start` | — | Game is starting |
+| `game_start` | `game` | Game is starting (`game` = registered name) |
 | `game_render` | `content` | ANSI render (table, prompts) |
 | `game_over` | — | Game ended |
 | `chat` | `name`, `text` | Chat message broadcast |
@@ -185,17 +196,27 @@ every 2s → sendto(                      datagram_received():
 
 ## 7. Game Plugin System
 
-```python
-# termplay/games/blackjack/plugin.py
-from termplay.engine.registry import GameRegistry
+Two registries, populated at import time by each game's `plugin.py`:
 
-@GameRegistry.register("blackjack", "Classic casino card game")
-class BlackjackGame(IGame):
+```python
+# Solo: GameSelectScreen lists these
+@GameRegistry.register
+class Uno(IGame):
+    @property
+    def name(self) -> str: return "Uno"
     async def run(self, transport: ITransportAdapter) -> None: ...
+
+# Multiplayer: server dispatches by lowercase game name
+MultiplayerRegistry.register("uno", lambda t, n, s: UnoController(t, n, s))
 ```
 
-`GameSelectScreen` calls `GameRegistry.list_games()` to populate the table.
-Adding a new game = new directory + `@register` decorator + import in `textual_app.py`.
+Each multiplayer factory takes `(transports, names, stealth_flags)` and returns a
+controller with an `async run()`. `TermPlayServer._run_controller` looks up the
+factory by game name; Blackjack is the fallback when no factory is registered.
+
+Adding a new game = new `games/<name>/` dir (`state.py`, `controller.py`,
+`plugin.py`) + both `register` calls + import the plugin in `textual_app.py`
+and `game_select.py`.
 
 ---
 
@@ -215,9 +236,14 @@ Adding a new game = new directory + `@register` decorator + import in `textual_a
 | `termplay/engine/discovery.py` | UDP broadcast + discovery |
 | `termplay/engine/room.py` | RoomManager, RoomPlayer |
 | `termplay/engine/protocol_adapter.py` | JSON protocol adapter (server-side) |
-| `termplay/engine/registry.py` | GameRegistry plugin system |
+| `termplay/engine/registry.py` | GameRegistry (solo plugin system) |
+| `termplay/engine/multiplayer.py` | MultiplayerRegistry + IMultiplayerController |
 | `termplay/games/blackjack/application/multiplayer_controller.py` | Concurrent round orchestration |
 | `termplay/games/blackjack/display/renderer.py` | ANSI renders via Rich |
+| `termplay/games/blackjack/display/log_renderer.py` | Disguise-mode log-line renderer |
+| `termplay/games/hangman/` | Forca: state, controller, plugin |
+| `termplay/games/tictactoe/` | Velha: state, controller, plugin |
+| `termplay/games/uno/` | Uno: state, controller, plugin |
 
 ---
 
@@ -247,7 +273,8 @@ Adding a new game = new directory + `@register` decorator + import in `textual_a
 | Engine | `test_engine/` | ~20 |
 | Config | `test_config/` | ~10 |
 | Frontends | `test_frontends/` | ~10 |
-| **Total** | | **111** |
+| Games (Forca/Velha/Uno state) | `test_games/test_new_games.py` | 4 |
+| **Total** | | **115** |
 
 ---
 

@@ -16,18 +16,27 @@ termplay/
 │   ├── room.py              RoomPlayer, Room, RoomManager
 │   ├── server.py            TermPlayServer (TCP P2P, embeds broadcaster)
 │   ├── discovery.py         RoomBroadcaster (UDP tx) + RoomDiscoverer (UDP rx)
-│   ├── registry.py          GameRegistry (@register decorator)
+│   ├── registry.py          GameRegistry (@register decorator, solo)
+│   ├── multiplayer.py       MultiplayerRegistry + IMultiplayerController
 │   └── game.py              IGame interface
 │
 ├── games/
-│   └── blackjack/
-│       ├── plugin.py        @GameRegistry.register("blackjack", ...)
-│       ├── conf.py          constants (STARTING_BALANCE, MIN_BET, ...)
-│       ├── domain/          Card, Deck, Hand, BlackjackRules — zero I/O
-│       ├── display/
-│       │   └── renderer.py  RichRenderer (ANSI via Rich → TCP string)
-│       └── application/
-│           └── multiplayer_controller.py  concurrent round orchestration
+│   ├── blackjack/
+│   │   ├── plugin.py        @GameRegistry.register + MP fallback
+│   │   ├── conf.py          constants (STARTING_BALANCE, MIN_BET, ...)
+│   │   ├── domain/          Card, Deck, Hand, BlackjackRules — zero I/O
+│   │   ├── display/
+│   │   │   ├── renderer.py      RichRenderer (ANSI via Rich → TCP string)
+│   │   │   └── log_renderer.py  LogRenderer (disguise: [INFO ] log lines)
+│   │   └── application/
+│   │       └── multiplayer_controller.py  concurrent round orchestration
+│   ├── hangman/             Forca   — state.py, controller.py, plugin.py
+│   ├── tictactoe/           Velha   — state.py, controller.py, plugin.py
+│   └── uno/                 Uno     — state.py, controller.py, plugin.py
+│
+│   Each game: plugin registers IGame (solo) in GameRegistry and a controller
+│   factory in MultiplayerRegistry. Controllers render per-player pretty
+│   (Rich/box-art) or disguised (log lines) based on each player's stealth flag.
 │
 └── frontends/
     ├── textual_app.py       TermplayTUIApp (App root, server lifecycle)
@@ -124,11 +133,14 @@ TermPlayServer._handle_client()
     │     await room.game_complete.wait()
     │
     └─ _run_controller(room)
-          MultiplayerGameController(transports, BlackjackRules(), names)
+          factory = MultiplayerRegistry.get(game_name)
+          transports/names/stealth_flags = [per player]
+          controller = factory(transports, names, stealth_flags)
+                       # None → Blackjack MultiplayerGameController fallback
           controller.run()
-              asyncio.gather(bets)          # simultaneous
-              asyncio.gather(player turns)  # simultaneous
-              each action → broadcast_tables(all_active)
+              asyncio.gather(...)            # concurrent where applicable
+              each action → broadcast to all players
+                            (per-player Rich or disguised log render)
           room.game_complete.set()
           broadcast TYPE_GAME_OVER
 ```
@@ -205,3 +217,35 @@ replacing it — table stays visible throughout the player's turn.
 
 Box characters (`╭╰╔╚┌└`) from Panels trigger `log.clear()` in `MpGameScreen`,
 which is the mechanism used to refresh the game table on each state change.
+
+---
+
+## Disguise Mode (Stealth)
+
+Renders any game as scrolling server-log lines so it looks like tailing app logs.
+**Per-player and additive** — the pretty TUI path is untouched; stealth is a flag.
+
+```
+settings.py  get_stealth() / set_stealth()   ← persisted (JSON), toggled in Settings
+    │
+    ▼
+create_room.py / join_room.py
+    send ACTION_CREATE_ROOM/JOIN_ROOM { stealth: get_stealth() }
+    │
+    ▼
+server._handle_client → stealth = bool(first["stealth"]) → RoomPlayer.stealth
+    _run_controller passes stealth_flags=[p.stealth for p in room.players]
+    │
+    ▼
+controller builds per player:  LogRenderer(t) if stealth else RichRenderer(t)
+    pretty → box-art panels (triggers MpGameScreen clear/refresh)
+    stealth → "[INFO ] HH:MM:SS event key=val"  (no box chars → append feed)
+    │
+    ▼
+MpGameScreen (client): self._stealth = get_stealth()
+    on_mount adds class "stealth" → hide Header + #actions buttons,
+    plain #out, shell-style input placeholder. Keypress bindings still play.
+```
+
+Because disguised output emits no box-drawing chars, `MpGameScreen` never calls
+`RichLog.clear()` — lines append like a real log feed instead of redrawing.
