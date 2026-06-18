@@ -17,6 +17,7 @@ class RoomPlayer:
 
     name: str
     transport: ITransportAdapter
+    stealth: bool = False
     input_queue: asyncio.Queue[str] = field(default_factory=asyncio.Queue)
 
 

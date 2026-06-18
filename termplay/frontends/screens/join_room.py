@@ -11,7 +11,12 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Header, Input, Label
 
-from termplay.config.settings import get_last_host, get_nickname, set_last_host
+from termplay.config.settings import (
+    get_last_host,
+    get_nickname,
+    get_stealth,
+    set_last_host,
+)
 from termplay.engine.discovery import DiscoveredRoom, RoomDiscoverer
 from termplay.engine.protocol import ACTION_JOIN_ROOM
 
@@ -186,7 +191,9 @@ class JoinRoomScreen(Screen[None]):
 
         waiting = WaitingRoomScreen(my_name=name, is_host=False)
         app.set_message_handler(waiting.on_server_message)
-        await app.connection.send(action=ACTION_JOIN_ROOM, name=name, code="")
+        await app.connection.send(
+            action=ACTION_JOIN_ROOM, name=name, code="", stealth=get_stealth()
+        )
         app.push_screen(waiting)
 
     def action_pop_screen(self) -> None:

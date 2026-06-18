@@ -11,6 +11,7 @@ from textual.containers import Horizontal
 from textual.screen import Screen
 from textual.widgets import Button, Header, Input, RichLog
 
+from termplay.config.settings import get_stealth
 from termplay.engine.protocol import (
     ACTION_GAME_INPUT,
     TYPE_ERROR,
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from termplay.frontends.textual_app import TermplayTUIApp
 
 _BOX_CHARS = ("╭", "╰", "╔", "╚", "┌", "└")
-_ACTION_MARKER = "Ação"
+_ACTION_MARKER = "Sua vez"
 
 
 class MpGameScreen(Screen[None]):
@@ -58,12 +59,27 @@ class MpGameScreen(Screen[None]):
     MpGameScreen Input {
         dock: bottom;
     }
+    MpGameScreen.stealth Header {
+        display: none;
+    }
+    MpGameScreen.stealth #actions {
+        display: none;
+    }
+    MpGameScreen.stealth #out {
+        border: none;
+        background: $surface;
+    }
+    MpGameScreen.generic #actions {
+        display: none;
+    }
     """
 
-    def __init__(self) -> None:
+    def __init__(self, game: str = "blackjack") -> None:
         super().__init__()
         self._mounted = False
         self._pending: list[dict[str, Any]] = []
+        self._stealth = get_stealth()
+        self._game = game.lower()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -79,6 +95,12 @@ class MpGameScreen(Screen[None]):
 
     def on_mount(self) -> None:
         self._mounted = True
+        if self._game != "blackjack":
+            self.add_class("generic")
+            self.query_one("#cmd", Input).placeholder = "digite e Enter..."
+        if self._stealth:
+            self.add_class("stealth")
+            self.query_one("#cmd", Input).placeholder = "user@host:~$ "
         self.query_one("#cmd", Input).focus()
         for msg in self._pending:
             self.run_worker(self.on_server_message(msg))
@@ -95,12 +117,15 @@ class MpGameScreen(Screen[None]):
         if mtype == TYPE_GAME_RENDER:
             content = str(msg.get("content") or "")
             clean = content.replace("\r\n", "\n").replace("\r", "\n")
-            if any(c in clean for c in _BOX_CHARS):
+            if not self._stealth and any(c in clean for c in _BOX_CHARS):
                 log.clear()
             log.write(Text.from_ansi(clean))
             self._set_actions_enabled(_ACTION_MARKER in content)
         elif mtype == TYPE_GAME_OVER:
-            log.write(Text.from_ansi("\n=== FIM DE JOGO === (Esc para sair)\n"))
+            if self._stealth:
+                log.write(Text.from_ansi("[INFO ] session.close reason=eof\n"))
+            else:
+                log.write(Text.from_ansi("\n=== FIM DE JOGO === (Esc para sair)\n"))
             self._set_actions_enabled(False)
         elif mtype == TYPE_ERROR:
             log.write(f"[erro] {msg.get('message')}")
@@ -108,6 +133,8 @@ class MpGameScreen(Screen[None]):
     # ── controle de botões ───────────────────────────────────────────────────
 
     def _set_actions_enabled(self, enabled: bool) -> None:
+        if self._stealth or self._game != "blackjack":
+            return  # buttons hidden; play via typed input
         for btn_id in ("hit", "stand", "double"):
             self.query_one(f"#{btn_id}", Button).disabled = not enabled
         if enabled:

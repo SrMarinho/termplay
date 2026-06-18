@@ -138,7 +138,8 @@ class WaitingRoomScreen(Screen[None]):
         elif mtype == TYPE_GAME_START:
             from termplay.frontends.screens.mp_game import MpGameScreen
 
-            mp = MpGameScreen()
+            game = str(msg.get("game") or "blackjack")
+            mp = MpGameScreen(game=game)
             cast("TermplayTUIApp", self.app).set_message_handler(mp.on_server_message)
             self.app.push_screen(mp)
         elif mtype == TYPE_ERROR:

@@ -7,7 +7,10 @@ from typing import Any
 
 from textual.app import App
 
-import termplay.games.blackjack.plugin  # noqa: F401  # registra Blackjack no GameRegistry
+import termplay.games.blackjack.plugin  # registra Blackjack no GameRegistry
+import termplay.games.hangman.plugin  # registra Forca
+import termplay.games.tictactoe.plugin  # registra Velha
+import termplay.games.uno.plugin  # noqa: F401  # registra Uno
 from termplay.frontends.net import ServerConnection
 from termplay.frontends.screens.home import HomeScreen
 

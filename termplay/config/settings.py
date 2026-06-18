@@ -55,6 +55,16 @@ def set_nickname(name: str) -> None:
     save(data)
 
 
+def get_stealth() -> bool:
+    return bool(load().get("stealth", False))
+
+
+def set_stealth(value: bool) -> None:
+    data = load()
+    data["stealth"] = value
+    save(data)
+
+
 def get_last_host() -> tuple[str, int]:
     data = load()
     return str(data.get("last_host", "")), int(data.get("last_port", 4443))

@@ -10,6 +10,8 @@ import json
 from typing import Any
 
 # Ações cliente → servidor
+# create_room / join_room accept an optional "stealth": bool field — when true
+# the server renders that player's game as plain log lines (disguise mode).
 ACTION_CREATE_ROOM = "create_room"
 ACTION_JOIN_ROOM = "join_room"
 ACTION_START_GAME = "start_game"

@@ -71,13 +71,17 @@ class TermPlayServer:
             if first is None:
                 return
             action = first.get("action")
+            stealth = bool(first.get("stealth"))
             if action == ACTION_CREATE_ROOM:
-                await self._host_flow(adapter, str(first.get("name") or "Host"))
+                await self._host_flow(
+                    adapter, str(first.get("name") or "Host"), stealth
+                )
             elif action == ACTION_JOIN_ROOM:
                 await self._guest_flow(
                     adapter,
                     str(first.get("name") or "Player"),
                     str(first.get("code") or "").upper(),
+                    stealth,
                 )
             else:
                 await adapter.send_control(
@@ -91,8 +95,10 @@ class TermPlayServer:
 
     # ── Host ─────────────────────────────────────────────────────────────────
 
-    async def _host_flow(self, adapter: ProtocolServerAdapter, name: str) -> None:
-        player = RoomPlayer(name=name, transport=adapter)
+    async def _host_flow(
+        self, adapter: ProtocolServerAdapter, name: str, stealth: bool = False
+    ) -> None:
+        player = RoomPlayer(name=name, transport=adapter, stealth=stealth)
         room = RoomManager.create(player)
         self._broadcaster.update(
             host=name,
@@ -124,7 +130,7 @@ class TermPlayServer:
 
         room.ready.set()
         self._broadcaster.update(status="playing")
-        await self._broadcast(room, type=TYPE_GAME_START)
+        await self._broadcast(room, type=TYPE_GAME_START, game=self._game_name)
         relay = asyncio.create_task(self._relay(adapter, room, name))
         try:
             await self._run_controller(room)
@@ -135,7 +141,11 @@ class TermPlayServer:
     # ── Guest ────────────────────────────────────────────────────────────────
 
     async def _guest_flow(
-        self, adapter: ProtocolServerAdapter, name: str, code: str
+        self,
+        adapter: ProtocolServerAdapter,
+        name: str,
+        code: str,
+        stealth: bool = False,
     ) -> None:
         # P2P: código vazio → auto-join na única sala disponível
         room = RoomManager.get(code) if code else RoomManager.first()
@@ -151,7 +161,7 @@ class TermPlayServer:
             )
             return
 
-        player = RoomPlayer(name=name, transport=adapter)
+        player = RoomPlayer(name=name, transport=adapter, stealth=stealth)
         room.add_player(player)
         await adapter.send_control(type=TYPE_ROOM_JOINED, code=room.code, you=name)
         await self._broadcast_state(room)
@@ -180,16 +190,28 @@ class TermPlayServer:
     # ── Jogo ─────────────────────────────────────────────────────────────────
 
     async def _run_controller(self, room: Room) -> None:
-        from termplay.games.blackjack.application.multiplayer_controller import (
-            MultiplayerGameController,
+        from termplay.engine.multiplayer import (
+            IMultiplayerController,
+            MultiplayerRegistry,
         )
-        from termplay.games.blackjack.domain.rules import BlackjackRules
 
         transports: list[ITransportAdapter] = [p.transport for p in room.players]
         names = [p.name for p in room.players]
-        controller = MultiplayerGameController(
-            transports, BlackjackRules(), names=names
-        )
+        stealth_flags = [p.stealth for p in room.players]
+
+        factory = MultiplayerRegistry.get(self._game_name)
+        controller: IMultiplayerController
+        if factory is None:
+            from termplay.games.blackjack.application.multiplayer_controller import (
+                MultiplayerGameController,
+            )
+            from termplay.games.blackjack.domain.rules import BlackjackRules
+
+            controller = MultiplayerGameController(
+                transports, BlackjackRules(), names=names, stealth_flags=stealth_flags
+            )
+        else:
+            controller = factory(transports, names, stealth_flags)
         try:
             await controller.run()
         finally:

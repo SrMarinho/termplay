@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from termplay.games.blackjack.conf import BLACKJACK_PAYOUT, MIN_BET, STARTING_BALANCE
+from termplay.games.blackjack.display.log_renderer import LogRenderer
 from termplay.games.blackjack.display.renderer import RichRenderer
 from termplay.games.blackjack.domain.deck import Deck
 from termplay.games.blackjack.domain.hand import Hand
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 @dataclass
 class _PlayerState:
     transport: ITransportAdapter
-    renderer: RichRenderer
+    renderer: RichRenderer | LogRenderer
     name: str
     balance: int = STARTING_BALANCE
     hand: Hand = field(default_factory=lambda: Hand([]))
@@ -44,25 +45,27 @@ class MultiplayerGameController:
         transports: Sequence[ITransportAdapter],
         rules: IGameRules,
         names: list[str] | None = None,
+        stealth_flags: list[bool] | None = None,
     ) -> None:
         self._rules = rules
         _names = names or [f"Player {i + 1}" for i in range(len(transports))]
+        _stealth = stealth_flags or [False] * len(transports)
         self._players = [
-            _PlayerState(t, RichRenderer(t), n)
-            for t, n in zip(transports, _names, strict=False)
+            _PlayerState(t, LogRenderer(t) if s else RichRenderer(t), n)
+            for t, n, s in zip(transports, _names, _stealth, strict=False)
         ]
 
     async def run(self) -> None:
-        await self._broadcast(
-            "\r\n╔══════════════════════════════╗\r\n"
-            "║   BLACKJACK MULTIPLAYER 🃏   ║\r\n"
-            "╚══════════════════════════════╝\r\n\r\n"
-        )
+        await asyncio.gather(*(
+            p.transport.write(p.renderer.banner()) for p in self._players
+        ))
         while self._active_players():
             await self._play_round()
             if not await self._ask_continue():
                 break
-        await self._broadcast("\r\nFim de jogo! Obrigado por jogar.\r\n")
+        await asyncio.gather(*(
+            p.transport.write(p.renderer.farewell()) for p in self._players
+        ))
 
     async def _play_round(self) -> None:
         deck = Deck()
@@ -74,7 +77,7 @@ class MultiplayerGameController:
             p.transport.write(p.renderer.bet_prompt(p.balance)) for p in active
         ))
         bets = await asyncio.gather(*(self._get_bet(p) for p in active))
-        for player, bet in zip(active, bets):
+        for player, bet in zip(active, bets, strict=False):
             if bet is None:
                 player.active = False
             else:
@@ -142,11 +145,15 @@ class MultiplayerGameController:
                 player.active = False
                 return
             if action is PlayerAction.STAND:
-                await self._broadcast_tables(all_active, dealer_hand, acting=player.name)
+                await self._broadcast_tables(
+                    all_active, dealer_hand, acting=player.name
+                )
                 break
             if action is PlayerAction.HIT:
                 self._rules.player_hit(player.hand, deck)
-                await self._broadcast_tables(all_active, dealer_hand, acting=player.name)
+                await self._broadcast_tables(
+                    all_active, dealer_hand, acting=player.name
+                )
                 if player.hand.is_bust:
                     await player.transport.write(player.renderer.bust())
                     break
@@ -192,10 +199,12 @@ class MultiplayerGameController:
 
     async def _get_action(self, player: _PlayerState) -> PlayerAction:
         mapping = {
-            "h": PlayerAction.HIT,   "hit":    PlayerAction.HIT,   "1": PlayerAction.HIT,
-            "s": PlayerAction.STAND, "stand":  PlayerAction.STAND, "2": PlayerAction.STAND,
-            "d": PlayerAction.DOUBLE,"double": PlayerAction.DOUBLE,"3": PlayerAction.DOUBLE,
-            "q": PlayerAction.QUIT,  "quit":   PlayerAction.QUIT,
+            "h": PlayerAction.HIT, "hit": PlayerAction.HIT, "1": PlayerAction.HIT,
+            "s": PlayerAction.STAND, "stand": PlayerAction.STAND,
+            "2": PlayerAction.STAND,
+            "d": PlayerAction.DOUBLE, "double": PlayerAction.DOUBLE,
+            "3": PlayerAction.DOUBLE,
+            "q": PlayerAction.QUIT, "quit": PlayerAction.QUIT,
         }
         while True:
             try:

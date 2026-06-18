@@ -6,11 +6,16 @@ from typing import ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Header, Input, Label
+from textual.widgets import Button, Header, Input, Label, Switch
 
-from termplay.config.settings import get_nickname, set_nickname
+from termplay.config.settings import (
+    get_nickname,
+    get_stealth,
+    set_nickname,
+    set_stealth,
+)
 
 
 class SettingsScreen(Screen[None]):
@@ -30,6 +35,14 @@ class SettingsScreen(Screen[None]):
         border: round $primary;
         padding: 1 2;
     }
+    SettingsScreen #stealth-row {
+        height: auto;
+        margin-top: 1;
+    }
+    SettingsScreen #stealth-row Label {
+        width: 1fr;
+        content-align: left middle;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -39,6 +52,11 @@ class SettingsScreen(Screen[None]):
             Label(""),
             Label("Nickname:"),
             Input(value=get_nickname(), id="nick", placeholder="seu nickname"),
+            Horizontal(
+                Label("Modo disfarce (logs):"),
+                Switch(value=get_stealth(), id="stealth"),
+                id="stealth-row",
+            ),
             Label(""),
             Button("Salvar", id="save", variant="primary"),
         )
@@ -56,6 +74,7 @@ class SettingsScreen(Screen[None]):
     def _save(self) -> None:
         nick = self.query_one("#nick", Input).value.strip()
         set_nickname(nick)
+        set_stealth(self.query_one("#stealth", Switch).value)
         self.app.pop_screen()
 
     def action_pop_screen(self) -> None:

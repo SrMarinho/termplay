@@ -89,6 +89,16 @@ class RichRenderer:
             "",
         )
 
+    def banner(self) -> str:
+        return (
+            "\r\n╔══════════════════════════════╗\r\n"
+            "║   BLACKJACK MULTIPLAYER 🃏   ║\r\n"
+            "╚══════════════════════════════╝\r\n\r\n"
+        )
+
+    def farewell(self) -> str:
+        return "\r\nFim de jogo! Obrigado por jogar.\r\n"
+
     def multiplayer_table(
         self,
         my_name: str,

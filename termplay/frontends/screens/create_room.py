@@ -12,7 +12,7 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Header, Input, Label
 
-from termplay.config.settings import get_nickname
+from termplay.config.settings import get_nickname, get_stealth
 from termplay.engine.protocol import ACTION_CREATE_ROOM
 
 if TYPE_CHECKING:
@@ -106,7 +106,9 @@ class CreateRoomScreen(Screen[None]):
             host_addr=f"{local_ip}:{port}",
         )
         app.set_message_handler(waiting.on_server_message)
-        await app.connection.send(action=ACTION_CREATE_ROOM, name=name)
+        await app.connection.send(
+            action=ACTION_CREATE_ROOM, name=name, stealth=get_stealth()
+        )
         app.push_screen(waiting)
 
     def action_pop_screen(self) -> None:
