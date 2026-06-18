@@ -1,4 +1,4 @@
-"""MpGameScreen — renderiza o jogo multiplayer (ANSI via game_render)."""
+"""MpGameScreen — renderiza o jogo multiplayer com botões de ação."""
 
 from __future__ import annotations
 
@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.containers import Horizontal
 from textual.screen import Screen
-from textual.widgets import Header, Input, RichLog
+from textual.widgets import Button, Header, Input, RichLog
 
 from termplay.engine.protocol import (
     ACTION_GAME_INPUT,
@@ -21,18 +22,34 @@ if TYPE_CHECKING:
     from termplay.frontends.textual_app import TermplayTUIApp
 
 _BOX_CHARS = ("╭", "╰", "╔", "╚", "┌", "└")
+_ACTION_MARKER = "Ação"
 
 
 class MpGameScreen(Screen[None]):
-    """Mostra o render ANSI enviado pelo servidor e envia inputs do jogador."""
+    """Mostra o render ANSI do servidor; botões e teclas para ações do jogo."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "leave", "Sair")
+        ("escape", "leave",      "Sair"),
+        ("1",      "act_hit",    "Hit"),
+        ("h",      "act_hit",    "Hit"),
+        ("2",      "act_stand",  "Stand"),
+        ("s",      "act_stand",  "Stand"),
+        ("3",      "act_double", "Double"),
+        ("d",      "act_double", "Double"),
     ]
 
     DEFAULT_CSS = """
     MpGameScreen RichLog {
         height: 1fr;
+    }
+    MpGameScreen #actions {
+        height: auto;
+        align: center middle;
+        padding: 0 1;
+    }
+    MpGameScreen #actions Button {
+        width: auto;
+        margin: 0 1;
     }
     MpGameScreen Input {
         dock: bottom;
@@ -44,12 +61,19 @@ class MpGameScreen(Screen[None]):
         yield RichLog(
             id="out", auto_scroll=True, markup=False, highlight=False, wrap=False
         )
-        yield Input(placeholder="h=hit  s=stand  d=double  q=sair", id="cmd")
+        with Horizontal(id="actions"):
+            yield Button("Hit [1]",    id="hit",    variant="success", disabled=True)
+            yield Button("Stand [2]",  id="stand",  variant="primary", disabled=True)
+            yield Button("Double [3]", id="double", variant="warning", disabled=True)
+            yield Button("Sair",       id="quit",   variant="error")
+        yield Input(placeholder="aposta (valor)...", id="cmd")
 
     def on_mount(self) -> None:
         app = cast("TermplayTUIApp", self.app)
         app.set_message_handler(self.on_server_message)
         self.query_one("#cmd", Input).focus()
+
+    # ── mensagens do servidor ────────────────────────────────────────────────
 
     async def on_server_message(self, msg: dict[str, Any]) -> None:
         mtype = msg.get("type")
@@ -60,17 +84,50 @@ class MpGameScreen(Screen[None]):
             if any(c in clean for c in _BOX_CHARS):
                 log.clear()
             log.write(Text.from_ansi(clean))
+            self._set_actions_enabled(_ACTION_MARKER in content)
         elif mtype == TYPE_GAME_OVER:
             log.write(Text.from_ansi("\n=== FIM DE JOGO === (Esc para sair)\n"))
+            self._set_actions_enabled(False)
         elif mtype == TYPE_ERROR:
             log.write(f"[erro] {msg.get('message')}")
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        value = event.value
-        event.input.clear()
+    # ── controle de botões ───────────────────────────────────────────────────
+
+    def _set_actions_enabled(self, enabled: bool) -> None:
+        for btn_id in ("hit", "stand", "double"):
+            self.query_one(f"#{btn_id}", Button).disabled = not enabled
+        if enabled:
+            self.query_one("#hit", Button).focus()
+
+    # ── envio de ação ────────────────────────────────────────────────────────
+
+    async def _send(self, text: str) -> None:
+        self._set_actions_enabled(False)
         app = cast("TermplayTUIApp", self.app)
         if app.connection is not None:
-            await app.connection.send(action=ACTION_GAME_INPUT, text=value)
+            await app.connection.send(action=ACTION_GAME_INPUT, text=text)
+
+    async def action_act_hit(self) -> None:
+        await self._send("h")
+
+    async def action_act_stand(self) -> None:
+        await self._send("s")
+
+    async def action_act_double(self) -> None:
+        await self._send("d")
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        mapping = {"hit": "h", "stand": "s", "double": "d"}
+        if event.button.id in mapping:
+            await self._send(mapping[event.button.id])
+        elif event.button.id == "quit":
+            await self.action_leave()
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        value = event.value.strip()
+        event.input.clear()
+        if value:
+            await self._send(value)
 
     async def action_leave(self) -> None:
         app = cast("TermplayTUIApp", self.app)
