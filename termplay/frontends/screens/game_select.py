@@ -14,11 +14,11 @@ import termplay.games.blackjack.plugin  # noqa: F401
 from termplay.engine.registry import GameRegistry
 
 
-class GameSelectScreen(Screen[None]):
-    """Tabela de jogos: setas para navegar, digitar para filtrar, Enter para jogar."""
+class GameSelectScreen(Screen[str | None]):
+    """Game list: arrow keys navigate, type to filter, Enter to select."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "pop_screen", "Voltar")
+        ("escape", "cancel", "Back")
     ]
 
     DEFAULT_CSS = """
@@ -34,8 +34,9 @@ class GameSelectScreen(Screen[None]):
     }
     """
 
-    def __init__(self) -> None:
+    def __init__(self, select_mode: bool = False) -> None:
         super().__init__()
+        self._select_mode = select_mode
         self._all_games: list[tuple[str, str]] = GameRegistry.list_games()
 
     def compose(self) -> ComposeResult:
@@ -80,11 +81,17 @@ class GameSelectScreen(Screen[None]):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         game_name = str(event.row_key.value)
+        if self._select_mode:
+            self.dismiss(game_name)
+            return
         game_class = GameRegistry.get(game_name)
         if game_class is None:
             return
         from termplay.frontends.screens.game import GameScreen
         self.app.push_screen(GameScreen(game_class))
 
-    def action_pop_screen(self) -> None:
-        self.app.pop_screen()
+    def action_cancel(self) -> None:
+        if self._select_mode:
+            self.dismiss(None)
+        else:
+            self.app.pop_screen()

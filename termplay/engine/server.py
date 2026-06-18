@@ -13,6 +13,7 @@ import contextlib
 import logging
 from typing import TYPE_CHECKING
 
+from termplay.engine.discovery import RoomBroadcaster
 from termplay.engine.protocol import (
     ACTION_CHAT,
     ACTION_CREATE_ROOM,
@@ -42,16 +43,22 @@ MIN_PLAYERS = 2
 class TermPlayServer:
     """Servidor TCP que coordena salas multiplayer via protocolo JSON."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 4443) -> None:
+    def __init__(
+        self, host: str = "0.0.0.0", port: int = 4443, game_name: str = "blackjack"
+    ) -> None:
         self.host = host
         self.port = port
+        self._game_name = game_name
         self._server: asyncio.Server | None = None
+        self._broadcaster = RoomBroadcaster()
+        self._broadcast_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(
             self._handle_client, self.host, self.port
         )
         logger.info(f"Servidor termplay rodando em {self.host}:{self.port}")
+        self._broadcast_task = asyncio.create_task(self._broadcaster.run())
 
     async def _handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -87,6 +94,14 @@ class TermPlayServer:
     async def _host_flow(self, adapter: ProtocolServerAdapter, name: str) -> None:
         player = RoomPlayer(name=name, transport=adapter)
         room = RoomManager.create(player)
+        self._broadcaster.update(
+            host=name,
+            game=self._game_name,
+            players=room.player_count,
+            max_players=room.max_players,
+            status="waiting",
+            port=self.actual_port,
+        )
         await adapter.send_control(type=TYPE_ROOM_CREATED, code=room.code, you=name)
         await self._broadcast_state(room)
 
@@ -108,6 +123,7 @@ class TermPlayServer:
                 await self._broadcast_chat(room, name, str(msg.get("text") or ""))
 
         room.ready.set()
+        self._broadcaster.update(status="playing")
         await self._broadcast(room, type=TYPE_GAME_START)
         relay = asyncio.create_task(self._relay(adapter, room, name))
         try:
@@ -209,6 +225,7 @@ class TermPlayServer:
         await asyncio.gather(*(send(p) for p in room.players))
 
     async def _broadcast_state(self, room: Room) -> None:
+        self._broadcaster.update(players=room.player_count)
         await self._broadcast(
             room,
             type=TYPE_ROOM_STATE,
@@ -235,6 +252,11 @@ class TermPlayServer:
         return int(addr[1])
 
     async def stop(self) -> None:
+        self._broadcaster.stop()
+        if self._broadcast_task is not None:
+            self._broadcast_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._broadcast_task
         if self._server:
             self._server.close()
             await self._server.wait_closed()

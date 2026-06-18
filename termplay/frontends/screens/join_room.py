@@ -1,16 +1,18 @@
-"""JoinRoomScreen — conecta direto ao host P2P e entra na sala."""
+"""JoinRoomScreen — discover LAN rooms via UDP and connect to selected host."""
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, ClassVar, cast
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Header, Input, Label
+from textual.widgets import Button, DataTable, Header, Input, Label
 
 from termplay.config.settings import get_last_host, get_nickname, set_last_host
+from termplay.engine.discovery import DiscoveredRoom, RoomDiscoverer
 from termplay.engine.protocol import ACTION_JOIN_ROOM
 
 if TYPE_CHECKING:
@@ -18,73 +20,163 @@ if TYPE_CHECKING:
 
 
 class JoinRoomScreen(Screen[None]):
-    """Coleta nome + IP:porta do host, conecta e entra na sala de espera."""
+    """Shows a live table of LAN rooms; select one to join, or type IP manually."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "pop_screen", "Voltar")
+        ("escape", "pop_screen", "Back")
     ]
 
     DEFAULT_CSS = """
     JoinRoomScreen {
-        align: center middle;
+        layout: vertical;
     }
-    JoinRoomScreen Vertical {
-        width: 50;
-        height: auto;
+    JoinRoomScreen #rooms {
+        height: 1fr;
         border: round $primary;
-        padding: 1 2;
+        margin: 0 1;
+    }
+    JoinRoomScreen #manual {
+        height: auto;
+        border: round $secondary;
+        margin: 0 1;
+        padding: 0 1;
+    }
+    JoinRoomScreen #manual Label {
+        margin-top: 1;
+    }
+    JoinRoomScreen #manual Horizontal {
+        height: auto;
+        margin-top: 1;
+    }
+    JoinRoomScreen #manual Horizontal Button {
+        width: auto;
     }
     JoinRoomScreen #status {
         color: $error;
+        margin: 0 1;
+        height: auto;
     }
     """
 
-    def compose(self) -> ComposeResult:
+    def __init__(self) -> None:
+        super().__init__()
+        self._discoverer = RoomDiscoverer()
+        self._refresh_task: asyncio.Task[None] | None = None
+        self._discovered: list[DiscoveredRoom] = []
         last_host, last_port = get_last_host()
+        self._last_host = last_host
+        self._last_port = last_port
+
+    def compose(self) -> ComposeResult:
         yield Header()
-        yield Vertical(
-            Label("Entrar em Sala"),
-            Label(""),
-            Label("Seu nome:"),
-            Input(value=get_nickname(), id="name", placeholder="nome do jogador"),
-            Label("IP do host:"),
-            Input(value=last_host, id="host", placeholder="ex: 192.168.1.42"),
-            Label("Porta:"),
-            Input(value=str(last_port), id="port", placeholder="4443"),
-            Label(""),
-            Button("Entrar", id="join", variant="primary"),
-            Label("", id="status"),
-        )
+        yield DataTable(id="rooms", cursor_type="row")
+        with Vertical(id="manual"):
+            yield Label("Manual connection:")
+            yield Input(
+                value=get_nickname(), id="name", placeholder="your name"
+            )
+            with Horizontal():
+                yield Input(
+                    value=self._last_host,
+                    id="host",
+                    placeholder="host IP (e.g. 192.168.1.42)",
+                )
+                yield Input(
+                    value=str(self._last_port), id="port", placeholder="4443"
+                )
+                yield Button("Connect", id="connect", variant="primary")
+        yield Label("", id="status")
+
+    def on_mount(self) -> None:
+        table = self.query_one("#rooms", DataTable)
+        table.add_column("Host",    width=14)
+        table.add_column("Game",    width=14)
+        table.add_column("Players", width=10)
+        table.add_column("Status",  width=12)
+        table.add_column("IP",      width=16)
+        table.focus()
+        self.run_worker(self._start_discovery(), exclusive=False)
+
+    async def on_unmount(self) -> None:
+        if self._refresh_task is not None:
+            self._refresh_task.cancel()
+        await self._discoverer.stop()
+
+    async def _start_discovery(self) -> None:
+        try:
+            await self._discoverer.start()
+        except OSError:
+            self.query_one("#status", Label).update(
+                "UDP discovery unavailable — use manual connection."
+            )
+        self._refresh_task = asyncio.create_task(self._refresh_loop())
+
+    async def _refresh_loop(self) -> None:
+        while True:
+            await asyncio.sleep(1.0)
+            self._discovered = self._discoverer.rooms()
+            self._update_table()
+
+    def _update_table(self) -> None:
+        table = self.query_one("#rooms", DataTable)
+        table.clear()
+        for room in self._discovered:
+            players_str = f"{room.players}/{room.max_players}"
+            table.add_row(
+                room.host,
+                room.game,
+                players_str,
+                room.status,
+                room.ip,
+                key=room.ip,
+            )
+
+    # ── table selection ──────────────────────────────────────────────────────
+
+    async def on_data_table_row_selected(
+        self, event: DataTable.RowSelected
+    ) -> None:
+        ip = str(event.row_key.value)
+        matching = [r for r in self._discovered if r.ip == ip]
+        if not matching:
+            return
+        room = matching[0]
+        name = self.query_one("#name", Input).value.strip() or "Player"
+        await self._join(name, room.ip, room.port)
+
+    # ── manual connection ────────────────────────────────────────────────────
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "join":
-            await self._join()
+        if event.button.id == "connect":
+            await self._manual_join()
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "name":
             self.query_one("#host", Input).focus()
         elif event.input.id == "host":
             self.query_one("#port", Input).focus()
-        else:
-            await self._join()
+        elif event.input.id == "port":
+            await self._manual_join()
 
-    async def _join(self) -> None:
+    async def _manual_join(self) -> None:
         name = self.query_one("#name", Input).value.strip() or "Player"
         host = self.query_one("#host", Input).value.strip()
         if not host:
-            self.query_one("#status", Label).update("Digite o IP do host.")
+            self.query_one("#status", Label).update("Enter the host IP.")
             return
         try:
             port = int(self.query_one("#port", Input).value.strip())
         except ValueError:
             port = 4443
+        await self._join(name, host, port)
 
+    async def _join(self, name: str, host: str, port: int) -> None:
         set_last_host(host, port)
         app = cast("TermplayTUIApp", self.app)
         ok = await app.connect_server(host, port)
         if not ok:
             self.query_one("#status", Label).update(
-                f"Falha ao conectar em {host}:{port}"
+                f"Failed to connect to {host}:{port}"
             )
             return
 
@@ -94,7 +186,6 @@ class JoinRoomScreen(Screen[None]):
 
         waiting = WaitingRoomScreen(my_name=name, is_host=False)
         app.set_message_handler(waiting.on_server_message)
-        # Envia código vazio → server P2P auto-join na única sala disponível
         await app.connection.send(action=ACTION_JOIN_ROOM, name=name, code="")
         app.push_screen(waiting)
 

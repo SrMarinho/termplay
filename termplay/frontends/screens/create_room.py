@@ -1,4 +1,4 @@
-"""CreateRoomScreen — inicia servidor P2P embutido e cria a sala."""
+"""CreateRoomScreen — select a game, start embedded P2P server, create room."""
 
 from __future__ import annotations
 
@@ -29,10 +29,10 @@ def _get_local_ip() -> str:
 
 
 class CreateRoomScreen(Screen[None]):
-    """Coleta o nome, inicia servidor embutido e abre a sala de espera."""
+    """Collect name, pick a game, start embedded server, open waiting room."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "pop_screen", "Voltar")
+        ("escape", "pop_screen", "Back")
     ]
 
     DEFAULT_CSS = """
@@ -53,12 +53,12 @@ class CreateRoomScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Vertical(
-            Label("Criar Sala"),
+            Label("Create Room"),
             Label(""),
-            Label("Seu nome:"),
-            Input(value=get_nickname(), id="name", placeholder="nome do jogador"),
+            Label("Your name:"),
+            Input(value=get_nickname(), id="name", placeholder="player name"),
             Label(""),
-            Button("Criar", id="create", variant="primary"),
+            Button("Select Game & Create", id="create", variant="primary"),
             Label("", id="status"),
         )
 
@@ -72,21 +72,28 @@ class CreateRoomScreen(Screen[None]):
     async def _create(self) -> None:
         name = self.query_one("#name", Input).value.strip() or "Host"
         app = cast("TermplayTUIApp", self.app)
-
         status = self.query_one("#status", Label)
-        status.update("Iniciando servidor...")
 
+        from termplay.frontends.screens.game_select import GameSelectScreen
+
+        game_name: str | None = await app.push_screen_wait(
+            GameSelectScreen(select_mode=True)
+        )
+        if not game_name:
+            return
+
+        status.update("Starting server...")
         try:
-            port = await app.start_embedded_server()
+            port = await app.start_embedded_server(game_name=game_name)
         except Exception:
-            status.update("Falha ao iniciar o servidor.")
+            status.update("Failed to start server.")
             return
 
         local_ip = _get_local_ip()
         ok = await app.connect_server("127.0.0.1", port)
         if not ok:
             await app.stop_embedded_server()
-            status.update("Falha ao conectar ao servidor local.")
+            status.update("Failed to connect to local server.")
             return
 
         assert app.connection is not None

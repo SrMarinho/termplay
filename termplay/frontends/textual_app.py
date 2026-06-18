@@ -41,15 +41,17 @@ class TermplayTUIApp(App[None]):
         self.run_worker(self._listen(), exclusive=False)
         return True
 
-    async def start_embedded_server(self, port: int = 4443) -> int:
+    async def start_embedded_server(
+        self, port: int = 4443, game_name: str = "blackjack"
+    ) -> int:
         """Inicia servidor TCP embutido (lazy). Retorna porta real em uso."""
         from termplay.engine.server import TermPlayServer
 
-        server = TermPlayServer("0.0.0.0", port)
+        server = TermPlayServer("0.0.0.0", port, game_name=game_name)
         try:
             await server.start()
         except OSError:
-            server = TermPlayServer("0.0.0.0", 0)
+            server = TermPlayServer("0.0.0.0", 0, game_name=game_name)
             await server.start()
         self._embedded_server = server
         return server.actual_port

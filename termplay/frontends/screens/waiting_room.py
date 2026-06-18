@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from rich.align import Align
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -23,6 +25,25 @@ from termplay.engine.protocol import (
 
 if TYPE_CHECKING:
     from termplay.frontends.textual_app import TermplayTUIApp
+
+_NICK_COLORS = ["cyan", "green", "magenta", "yellow", "blue", "red"]
+
+
+def _nick_color(name: str) -> str:
+    return _NICK_COLORS[hash(name) % len(_NICK_COLORS)]
+
+
+def _chat_renderable(name: str, text: str, is_mine: bool) -> object:
+    if is_mine:
+        msg = Text(f" {text} ", style="white on dark_blue", justify="right")
+        byline = Text(f" {name} ", style="dim", justify="right")
+        combined = Text.assemble(byline, "\n", msg)
+        return Align.right(combined)
+    color = _nick_color(name)
+    return Text.assemble(
+        Text(f"{name}", style=f"bold {color}"),
+        Text(f"  {text}", style="white"),
+    )
 
 
 class WaitingRoomScreen(Screen[None]):
@@ -101,8 +122,10 @@ class WaitingRoomScreen(Screen[None]):
         elif mtype == TYPE_ROOM_STATE:
             self._update_state(msg)
         elif mtype == TYPE_CHAT:
+            sender = str(msg.get("name") or "")
+            text = str(msg.get("text") or "")
             self.query_one("#chat", RichLog).write(
-                f"{msg.get('name')}: {msg.get('text')}"
+                _chat_renderable(sender, text, sender == self._my_name)
             )
         elif mtype == TYPE_GAME_START:
             from termplay.frontends.screens.mp_game import MpGameScreen
