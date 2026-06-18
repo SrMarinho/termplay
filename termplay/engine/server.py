@@ -121,11 +121,13 @@ class TermPlayServer:
     async def _guest_flow(
         self, adapter: ProtocolServerAdapter, name: str, code: str
     ) -> None:
-        room = RoomManager.get(code)
+        # P2P: código vazio → auto-join na única sala disponível
+        room = RoomManager.get(code) if code else RoomManager.first()
         if room is None:
-            await adapter.send_control(
-                type=TYPE_ERROR, message=f"Sala '{code}' não encontrada.", fatal=True
+            err = (
+                "Sala não encontrada." if not code else f"Sala '{code}' não encontrada."
             )
+            await adapter.send_control(type=TYPE_ERROR, message=err, fatal=True)
             return
         if room.is_full:
             await adapter.send_control(
@@ -224,6 +226,13 @@ class TermPlayServer:
             await self._broadcast(room, type=TYPE_CHAT, name=name, text=text)
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
+
+    @property
+    def actual_port(self) -> int:
+        """Porta real após bind (útil quando porta 0 foi pedida ao OS)."""
+        assert self._server is not None
+        addr = self._server.sockets[0].getsockname()
+        return int(addr[1])
 
     async def stop(self) -> None:
         if self._server:

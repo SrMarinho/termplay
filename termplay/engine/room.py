@@ -79,6 +79,11 @@ class RoomManager:
         cls._rooms.clear()
 
     @classmethod
+    def first(cls) -> Room | None:
+        """Retorna a primeira sala disponível (para servidores P2P com uma sala)."""
+        return next(iter(cls._rooms.values()), None)
+
+    @classmethod
     def _gen_code(cls) -> str:
         chars = string.ascii_uppercase + string.digits
         while True:

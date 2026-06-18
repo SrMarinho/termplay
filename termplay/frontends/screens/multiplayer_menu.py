@@ -8,11 +8,11 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Header, Input, Label
+from textual.widgets import Button, Header, Label
 
 
 class MultiplayerMenuScreen(Screen[None]):
-    """Lobby multiplayer: configura servidor e cria ou entra em sala."""
+    """Lobby multiplayer: cria sala (P2P host) ou entra em sala existente."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         ("escape", "pop_screen", "Voltar")
@@ -28,10 +28,6 @@ class MultiplayerMenuScreen(Screen[None]):
         border: round $primary;
         padding: 1 2;
     }
-    MultiplayerMenuScreen Label.section {
-        margin-top: 1;
-        color: $text-muted;
-    }
     MultiplayerMenuScreen Horizontal {
         height: auto;
         margin-top: 1;
@@ -44,31 +40,22 @@ class MultiplayerMenuScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Vertical(
-            Label("Servidor", classes="section"),
-            Input(value="127.0.0.1", id="host", placeholder="host ou IP"),
-            Input(value="4443", id="port", placeholder="porta"),
+            Label("Multiplayer"),
             Horizontal(
                 Button("Criar Sala", id="create", variant="primary"),
                 Button("Entrar em Sala", id="join", variant="default"),
             ),
         )
 
-    def _server(self) -> tuple[str, int]:
-        host = self.query_one("#host", Input).value.strip() or "127.0.0.1"
-        try:
-            port = int(self.query_one("#port", Input).value.strip())
-        except ValueError:
-            port = 4443
-        return host, port
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        host, port = self._server()
         if event.button.id == "create":
             from termplay.frontends.screens.create_room import CreateRoomScreen
-            self.app.push_screen(CreateRoomScreen(host, port))
+
+            self.app.push_screen(CreateRoomScreen())
         elif event.button.id == "join":
             from termplay.frontends.screens.join_room import JoinRoomScreen
-            self.app.push_screen(JoinRoomScreen(host, port))
+
+            self.app.push_screen(JoinRoomScreen())
 
     def action_pop_screen(self) -> None:
         self.app.pop_screen()

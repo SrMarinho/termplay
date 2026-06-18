@@ -1,4 +1,4 @@
-"""JoinRoomScreen — conecta ao servidor e entra em sala existente."""
+"""JoinRoomScreen — conecta direto ao host P2P e entra na sala."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class JoinRoomScreen(Screen[None]):
-    """Coleta nome + código, conecta e entra na sala de espera."""
+    """Coleta nome + IP:porta do host, conecta e entra na sala de espera."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         ("escape", "pop_screen", "Voltar")
@@ -39,11 +39,6 @@ class JoinRoomScreen(Screen[None]):
     }
     """
 
-    def __init__(self, host: str, port: int) -> None:
-        super().__init__()
-        self._host = host
-        self._port = port
-
     def compose(self) -> ComposeResult:
         yield Header()
         yield Vertical(
@@ -51,8 +46,10 @@ class JoinRoomScreen(Screen[None]):
             Label(""),
             Label("Seu nome:"),
             Input(value=get_nickname(), id="name", placeholder="nome do jogador"),
-            Label("Código da sala:"),
-            Input(id="code", placeholder="ex: AB12", max_length=4),
+            Label("IP do host:"),
+            Input(id="host", placeholder="ex: 192.168.1.42"),
+            Label("Porta:"),
+            Input(value="4443", id="port", placeholder="4443"),
             Label(""),
             Button("Entrar", id="join", variant="primary"),
             Label("", id="status"),
@@ -64,25 +61,35 @@ class JoinRoomScreen(Screen[None]):
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "name":
-            self.query_one("#code", Input).focus()
+            self.query_one("#host", Input).focus()
+        elif event.input.id == "host":
+            self.query_one("#port", Input).focus()
         else:
             await self._join()
 
     async def _join(self) -> None:
         name = self.query_one("#name", Input).value.strip() or "Player"
-        code = self.query_one("#code", Input).value.strip().upper()
-        if not code:
-            self.query_one("#status", Label).update("Digite o código da sala.")
+        host = self.query_one("#host", Input).value.strip()
+        if not host:
+            self.query_one("#status", Label).update("Digite o IP do host.")
             return
+        try:
+            port = int(self.query_one("#port", Input).value.strip())
+        except ValueError:
+            port = 4443
+
         app = cast("TermplayTUIApp", self.app)
-        ok = await app.connect_server(self._host, self._port)
+        ok = await app.connect_server(host, port)
         if not ok:
             self.query_one("#status", Label).update(
-                f"Falha ao conectar em {self._host}:{self._port}"
+                f"Falha ao conectar em {host}:{port}"
             )
             return
+
         assert app.connection is not None
-        await app.connection.send(action=ACTION_JOIN_ROOM, name=name, code=code)
+        # Envia código vazio → server P2P auto-join na única sala disponível
+        await app.connection.send(action=ACTION_JOIN_ROOM, name=name, code="")
+
         from termplay.frontends.screens.waiting_room import WaitingRoomScreen
 
         app.push_screen(WaitingRoomScreen(my_name=name, is_host=False))

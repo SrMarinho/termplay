@@ -55,16 +55,21 @@ class WaitingRoomScreen(Screen[None]):
     }
     """
 
-    def __init__(self, my_name: str, is_host: bool) -> None:
+    def __init__(self, my_name: str, is_host: bool, host_addr: str = "") -> None:
         super().__init__()
         self._my_name = my_name
         self._is_host = is_host
+        self._host_addr = host_addr
         self._code = "----"
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical():
             yield Static("Sala: ----", id="code")
+            if self._is_host and self._host_addr:
+                yield Static(
+                    f"Compartilhe: {self._host_addr}", id="share"
+                )
             yield Static("Aguardando...", id="players")
             yield RichLog(id="chat", markup=False, highlight=False, wrap=True)
             if self._is_host:

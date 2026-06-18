@@ -23,6 +23,7 @@ class TermplayTUIApp(App[None]):
         super().__init__()
         self.connection: ServerConnection | None = None
         self._msg_handler: MessageHandler | None = None
+        self._embedded_server: object = None  # TermPlayServer | None, lazy import
 
     def on_mount(self) -> None:
         self.push_screen(HomeScreen())
@@ -40,11 +41,33 @@ class TermplayTUIApp(App[None]):
         self.run_worker(self._listen(), exclusive=False)
         return True
 
+    async def start_embedded_server(self, port: int = 4443) -> int:
+        """Inicia servidor TCP embutido (lazy). Retorna porta real em uso."""
+        from termplay.engine.server import TermPlayServer
+
+        server = TermPlayServer("0.0.0.0", port)
+        try:
+            await server.start()
+        except OSError:
+            server = TermPlayServer("0.0.0.0", 0)
+            await server.start()
+        self._embedded_server = server
+        return server.actual_port
+
+    async def stop_embedded_server(self) -> None:
+        if self._embedded_server is not None:
+            from termplay.engine.server import TermPlayServer
+
+            if isinstance(self._embedded_server, TermPlayServer):
+                await self._embedded_server.stop()
+            self._embedded_server = None
+
     async def disconnect_server(self) -> None:
         if self.connection is not None:
             await self.connection.close()
             self.connection = None
         self._msg_handler = None
+        await self.stop_embedded_server()
 
     async def _listen(self) -> None:
         conn = self.connection
