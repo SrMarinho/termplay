@@ -61,6 +61,8 @@ class WaitingRoomScreen(Screen[None]):
         self._is_host = is_host
         self._host_addr = host_addr
         self._code = "----"
+        self._mounted = False
+        self._pending: list[dict[str, Any]] = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -81,10 +83,17 @@ class WaitingRoomScreen(Screen[None]):
     def on_mount(self) -> None:
         app = cast("TermplayTUIApp", self.app)
         app.set_message_handler(self.on_server_message)
+        self._mounted = True
+        for msg in self._pending:
+            self.run_worker(self.on_server_message(msg))
+        self._pending.clear()
 
     # ── Mensagens do servidor ────────────────────────────────────────────────
 
     async def on_server_message(self, msg: dict[str, Any]) -> None:
+        if not self._mounted:
+            self._pending.append(msg)
+            return
         mtype = msg.get("type")
         if mtype in (TYPE_ROOM_CREATED, TYPE_ROOM_JOINED):
             self._code = str(msg.get("code") or "----")

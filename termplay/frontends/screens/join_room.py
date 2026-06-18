@@ -87,12 +87,14 @@ class JoinRoomScreen(Screen[None]):
             return
 
         assert app.connection is not None
-        # Envia código vazio → server P2P auto-join na única sala disponível
-        await app.connection.send(action=ACTION_JOIN_ROOM, name=name, code="")
 
         from termplay.frontends.screens.waiting_room import WaitingRoomScreen
 
-        app.push_screen(WaitingRoomScreen(my_name=name, is_host=False))
+        waiting = WaitingRoomScreen(my_name=name, is_host=False)
+        app.set_message_handler(waiting.on_server_message)
+        # Envia código vazio → server P2P auto-join na única sala disponível
+        await app.connection.send(action=ACTION_JOIN_ROOM, name=name, code="")
+        app.push_screen(waiting)
 
     def action_pop_screen(self) -> None:
         self.app.pop_screen()
