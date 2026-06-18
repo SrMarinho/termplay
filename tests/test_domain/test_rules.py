@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from py21ssh.domain.card import Card, Rank, Suit
-from py21ssh.domain.deck import Deck
-from py21ssh.domain.hand import Hand
-from py21ssh.domain.interfaces import RoundResult
-from py21ssh.domain.rules import BlackjackRules
+from termplay.games.blackjack.domain.card import Card, Rank, Suit
+from termplay.games.blackjack.domain.deck import Deck
+from termplay.games.blackjack.domain.hand import Hand
+from termplay.games.blackjack.domain.interfaces import RoundResult
+from termplay.games.blackjack.domain.rules import BlackjackRules
 
 
 def _c(rank: Rank, suit: Suit = Suit.HEARTS) -> Card:

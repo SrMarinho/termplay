@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from py21ssh.domain.card import Card, Rank, Suit
-from py21ssh.domain.hand import Hand
+from termplay.games.blackjack.domain.card import Card, Rank, Suit
+from termplay.games.blackjack.domain.hand import Hand
 
 
 def _make(rank: Rank, suit: Suit = Suit.HEARTS) -> Card:

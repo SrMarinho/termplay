@@ -1,16 +1,18 @@
 [project]
-name = "py21ssh"
+name = "termplay"
 version = "0.1.0"
-description = "21 (Blackjack) via TCP — jogue pela intranet sem shell"
+description = "Engine de jogos via TCP/SSH — extensível por plugins"
 requires-python = ">=3.11"
 authors = [{name = "Matheus Marinho"}]
 
 dependencies = [
     "rich>=13.0",
+    "textual>=0.50",
 ]
 
 [project.scripts]
-py21ssh = "py21ssh.__main__:main"
+termplay = "termplay.__main__:main"
+termplay-tui = "termplay.frontends.textual_app:main"
 
 [project.optional-dependencies]
 dev = [

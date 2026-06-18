@@ -1,0 +1,140 @@
+"""WaitingRoomScreen — sala de espera nativa com lista de players e chat."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, ClassVar, cast
+
+from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.containers import Vertical
+from textual.screen import Screen
+from textual.widgets import Button, Header, Input, RichLog, Static
+
+from termplay.engine.protocol import (
+    ACTION_CHAT,
+    ACTION_START_GAME,
+    TYPE_CHAT,
+    TYPE_ERROR,
+    TYPE_GAME_START,
+    TYPE_ROOM_CREATED,
+    TYPE_ROOM_JOINED,
+    TYPE_ROOM_STATE,
+)
+
+if TYPE_CHECKING:
+    from termplay.frontends.textual_app import TermplayTUIApp
+
+
+class WaitingRoomScreen(Screen[None]):
+    """Mostra players em tempo real; líder inicia quando atinge o mínimo."""
+
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
+        ("escape", "leave", "Sair da sala")
+    ]
+
+    DEFAULT_CSS = """
+    WaitingRoomScreen Vertical {
+        padding: 1 2;
+    }
+    WaitingRoomScreen #code {
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    WaitingRoomScreen #players {
+        border: round $primary;
+        height: auto;
+        min-height: 6;
+        padding: 0 1;
+    }
+    WaitingRoomScreen #chat {
+        height: 1fr;
+        border: round $secondary;
+    }
+    WaitingRoomScreen #start {
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, my_name: str, is_host: bool) -> None:
+        super().__init__()
+        self._my_name = my_name
+        self._is_host = is_host
+        self._code = "----"
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical():
+            yield Static("Sala: ----", id="code")
+            yield Static("Aguardando...", id="players")
+            yield RichLog(id="chat", markup=False, highlight=False, wrap=True)
+            if self._is_host:
+                yield Button(
+                    "Iniciar Partida", id="start", variant="success", disabled=True
+                )
+            yield Input(placeholder="Mensagem de chat...", id="chat-input")
+
+    def on_mount(self) -> None:
+        app = cast("TermplayTUIApp", self.app)
+        app.set_message_handler(self.on_server_message)
+
+    # ── Mensagens do servidor ────────────────────────────────────────────────
+
+    async def on_server_message(self, msg: dict[str, Any]) -> None:
+        mtype = msg.get("type")
+        if mtype in (TYPE_ROOM_CREATED, TYPE_ROOM_JOINED):
+            self._code = str(msg.get("code") or "----")
+            self.query_one("#code", Static).update(f"Sala: {self._code}")
+        elif mtype == TYPE_ROOM_STATE:
+            self._update_state(msg)
+        elif mtype == TYPE_CHAT:
+            self.query_one("#chat", RichLog).write(
+                f"{msg.get('name')}: {msg.get('text')}"
+            )
+        elif mtype == TYPE_GAME_START:
+            from termplay.frontends.screens.mp_game import MpGameScreen
+
+            self.app.push_screen(MpGameScreen())
+        elif mtype == TYPE_ERROR:
+            self.query_one("#chat", RichLog).write(f"[erro] {msg.get('message')}")
+            if msg.get("fatal"):
+                await self._teardown()
+                self.app.pop_screen()
+
+    def _update_state(self, msg: dict[str, Any]) -> None:
+        players = msg.get("players") or []
+        host = msg.get("host")
+        count = msg.get("player_count", len(players))
+        max_p = msg.get("max_players", 4)
+        lines = [f"Players ({count}/{max_p}):"]
+        for name in players:
+            tag = " (líder)" if name == host else ""
+            lines.append(f"  • {name}{tag}")
+        self.query_one("#players", Static).update("\n".join(lines))
+        if self._is_host:
+            btn = self.query_one("#start", Button)
+            btn.disabled = not bool(msg.get("can_start"))
+
+    # ── Ações ────────────────────────────────────────────────────────────────
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "start":
+            app = cast("TermplayTUIApp", self.app)
+            if app.connection is not None:
+                await app.connection.send(action=ACTION_START_GAME)
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        text = event.value.strip()
+        event.input.clear()
+        if not text:
+            return
+        app = cast("TermplayTUIApp", self.app)
+        if app.connection is not None:
+            await app.connection.send(action=ACTION_CHAT, text=text)
+
+    async def action_leave(self) -> None:
+        await self._teardown()
+        self.app.pop_screen()
+
+    async def _teardown(self) -> None:
+        app = cast("TermplayTUIApp", self.app)
+        await app.disconnect_server()

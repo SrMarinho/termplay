@@ -1,0 +1,87 @@
+"""Gerenciamento de salas para sessões multiplayer."""
+
+from __future__ import annotations
+
+import asyncio
+import random
+import string
+from dataclasses import dataclass, field
+from typing import ClassVar
+
+from termplay.engine.interfaces import ITransportAdapter
+
+
+@dataclass
+class RoomPlayer:
+    """Jogador registrado em uma sala."""
+
+    name: str
+    transport: ITransportAdapter
+    input_queue: asyncio.Queue[str] = field(default_factory=asyncio.Queue)
+
+
+@dataclass
+class Room:
+    """Sala de jogo multiplayer com canal de chat e coordenação de estado."""
+
+    code: str
+    host: RoomPlayer
+    max_players: int = 4
+    players: list[RoomPlayer] = field(default_factory=list)
+    ready: asyncio.Event = field(default_factory=asyncio.Event)
+    game_complete: asyncio.Event = field(default_factory=asyncio.Event)
+
+    def add_player(self, player: RoomPlayer) -> bool:
+        if self.is_full:
+            return False
+        self.players.append(player)
+        return True
+
+    def remove_player(self, player: RoomPlayer) -> None:
+        if player in self.players:
+            self.players.remove(player)
+
+    async def broadcast(self, text: str) -> None:
+        await asyncio.gather(*(p.transport.write(text) for p in self.players))
+
+    @property
+    def is_full(self) -> bool:
+        return len(self.players) >= self.max_players
+
+    @property
+    def player_count(self) -> int:
+        return len(self.players)
+
+
+class RoomManager:
+    """Registro global de salas ativas — singleton baseado em variável de classe."""
+
+    _rooms: ClassVar[dict[str, Room]] = {}
+
+    @classmethod
+    def create(cls, host: RoomPlayer, max_players: int = 4) -> Room:
+        code = cls._gen_code()
+        room = Room(code=code, host=host, max_players=max_players)
+        room.players.append(host)
+        cls._rooms[code] = room
+        return room
+
+    @classmethod
+    def get(cls, code: str) -> Room | None:
+        return cls._rooms.get(code.upper())
+
+    @classmethod
+    def remove(cls, code: str) -> None:
+        cls._rooms.pop(code.upper(), None)
+
+    @classmethod
+    def clear(cls) -> None:
+        cls._rooms.clear()
+
+    @classmethod
+    def _gen_code(cls) -> str:
+        chars = string.ascii_uppercase + string.digits
+        while True:
+            code = "".join(random.choices(chars, k=4))
+            if code not in cls._rooms:
+                return code

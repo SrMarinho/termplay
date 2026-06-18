@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from py21ssh.domain.card import Card, Rank, Suit
-from py21ssh.domain.deck import Deck, EmptyDeckError
+from termplay.games.blackjack.domain.card import Card, Rank, Suit
+from termplay.games.blackjack.domain.deck import Deck, EmptyDeckError
 
 
 class TestDeck:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from py21ssh.domain.card import Card, Rank, Suit, all_cards
+from termplay.games.blackjack.domain.card import Card, Rank, Suit, all_cards
 
 
 class TestCard:
