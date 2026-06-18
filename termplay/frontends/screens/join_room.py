@@ -10,7 +10,7 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Header, Input, Label
 
-from termplay.config.settings import get_nickname
+from termplay.config.settings import get_last_host, get_nickname, set_last_host
 from termplay.engine.protocol import ACTION_JOIN_ROOM
 
 if TYPE_CHECKING:
@@ -40,6 +40,7 @@ class JoinRoomScreen(Screen[None]):
     """
 
     def compose(self) -> ComposeResult:
+        last_host, last_port = get_last_host()
         yield Header()
         yield Vertical(
             Label("Entrar em Sala"),
@@ -47,9 +48,9 @@ class JoinRoomScreen(Screen[None]):
             Label("Seu nome:"),
             Input(value=get_nickname(), id="name", placeholder="nome do jogador"),
             Label("IP do host:"),
-            Input(id="host", placeholder="ex: 192.168.1.42"),
+            Input(value=last_host, id="host", placeholder="ex: 192.168.1.42"),
             Label("Porta:"),
-            Input(value="4443", id="port", placeholder="4443"),
+            Input(value=str(last_port), id="port", placeholder="4443"),
             Label(""),
             Button("Entrar", id="join", variant="primary"),
             Label("", id="status"),
@@ -78,6 +79,7 @@ class JoinRoomScreen(Screen[None]):
         except ValueError:
             port = 4443
 
+        set_last_host(host, port)
         app = cast("TermplayTUIApp", self.app)
         ok = await app.connect_server(host, port)
         if not ok:

@@ -53,3 +53,15 @@ def set_nickname(name: str) -> None:
     data = load()
     data["nickname"] = name
     save(data)
+
+
+def get_last_host() -> tuple[str, int]:
+    data = load()
+    return str(data.get("last_host", "")), int(data.get("last_port", 4443))
+
+
+def set_last_host(host: str, port: int) -> None:
+    data = load()
+    data["last_host"] = host
+    data["last_port"] = port
+    save(data)
