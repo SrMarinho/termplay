@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+
+from termplay.engine.transport.queued_adapter import QueuedAdapter
 from termplay.games.hangman.state import HangmanState
+from termplay.games.tictactoe.bot import VelhaBot
+from termplay.games.tictactoe.controller import TicTacToeController
 from termplay.games.tictactoe.state import TicTacToeState
 from termplay.games.uno.state import Card, UnoState, build_deck
-from termplay.games.tictactoe.bot import VelhaBot
+
+
+def _run(coro):  # type: ignore[no-untyped-def]
+    return asyncio.run(coro)
 
 
 def test_hangman_win_and_loss() -> None:
@@ -91,3 +100,38 @@ def test_hard_move_never_loses_from_start() -> None:
     idx = VelhaBot.hard_move(cells[:], "O")
     assert 0 <= idx <= 8
     assert cells[idx] == " "
+
+
+def test_controller_sends_json_state() -> None:
+    p1 = QueuedAdapter()
+    p2 = QueuedAdapter()
+    p1.feed("1")  # X plays cell 1 (idx 0)
+    p2.feed("4")  # O plays cell 4 (idx 3)
+    p1.feed("2")  # X plays cell 2 (idx 1)
+    p2.feed("5")  # O plays cell 5 (idx 4)
+    p1.feed("3")  # X wins row 0: cells 0,1,2
+    ctrl = TicTacToeController([p1, p2])
+    _run(ctrl.run())
+
+    # p1 received multiple JSON state messages
+    msgs = []
+    while not p1.output_queue.empty():
+        msgs.append(p1.output_queue.get_nowait())
+
+    # At least one message should be valid JSON velha.state
+    states = []
+    for m in msgs:
+        for line in m.splitlines():
+            line = line.strip()
+            try:
+                data = json.loads(line)
+                if data.get("v") == "velha.state":
+                    states.append(data)
+            except (ValueError, TypeError):
+                pass
+
+    assert len(states) > 0
+    last = states[-1]
+    assert last["phase"] == "over"
+    assert last["winner"] == "X"
+    assert last["your_mark"] == "X"
