@@ -20,6 +20,16 @@ termplay
 
 The TUI walks you through everything: solo games, creating a room, or joining a friend's room on the same network.
 
+### Navigation
+
+| Key | Action |
+|-----|--------|
+| `↑` `↓` `←` `→` | Move between buttons and options (primary navigation) |
+| `Tab` | Switch between panels |
+| `Enter` | Confirm / select |
+| `Escape` | Go back |
+| `Ctrl+Q` | Quit |
+
 ### Multiplayer (LAN)
 
 **Host:**
