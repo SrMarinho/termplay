@@ -219,7 +219,7 @@ class UnoGameScreen(Screen[None]):
             return
 
         self._update_pile(data)
-        self._update_opponents(data)
+        await self._update_opponents(data)
         self._update_status(data)
         self._your_turn = bool(data.get("your_turn"))
         await self._render_hand(
@@ -243,9 +243,9 @@ class UnoGameScreen(Screen[None]):
             f"Cor atual: [b]{_COLOR_NAME.get(active, active)}[/]\nSentido: {arrow}"
         )
 
-    def _update_opponents(self, data: dict[str, Any]) -> None:
+    async def _update_opponents(self, data: dict[str, Any]) -> None:
         bar = self.query_one("#opponents", Horizontal)
-        bar.remove_children()
+        await bar.remove_children()
         current = int(data.get("current", -1))
         you = int(data.get("you", -1))
         players = data.get("players", [])
@@ -274,12 +274,12 @@ class UnoGameScreen(Screen[None]):
         self, hand: list[str], playable: list[int], *, enabled: bool
     ) -> None:
         box = self.query_one("#hand", HorizontalScroll)
-        box.remove_children()
+        await box.remove_children()
         playset = set(playable)
         for i, face in enumerate(hand):
             color, _, value = face.partition(":")
             btn = Button(
-                f"{color}\n{_face(value)}", id=f"c{i}", classes=f"card-{color}"
+                f"{color} {_face(value)}", name=str(i), classes=f"card-{color}"
             )
             btn.disabled = not (enabled and i in playset)
             box.mount(btn)
@@ -309,12 +309,13 @@ class UnoGameScreen(Screen[None]):
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = str(event.button.id or "")
+        name = event.button.name
         if bid == "leave":
             await self.action_leave()
         elif bid == "draw" and self._your_turn:
             await self._send("d")
-        elif bid.startswith("c") and bid[1:].isdigit():
-            await self._send(str(int(bid[1:]) + 1))
+        elif name is not None and name.isdigit():
+            await self._send(str(int(name) + 1))
 
     async def action_leave(self) -> None:
         app = cast("TermplayTUIApp", self.app)
