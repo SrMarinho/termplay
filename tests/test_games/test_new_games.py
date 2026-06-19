@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 from termplay.games.hangman.state import HangmanState
 from termplay.games.tictactoe.state import TicTacToeState
 from termplay.games.uno.state import Card, UnoState, build_deck
+from termplay.games.tictactoe.bot import VelhaBot
 
 
 def test_hangman_win_and_loss() -> None:
@@ -60,3 +62,33 @@ def test_uno_deck_and_play() -> None:
     assert state.winner() is None
     state.hands[1].clear()
     assert state.winner() == 1
+
+
+def test_easy_move_picks_empty_cell() -> None:
+    cells = ["X", "O", "X", "O", "X", "O", " ", " ", " "]
+    idx = VelhaBot.easy_move(cells)
+    assert idx in (6, 7, 8)
+    assert cells[idx] == " "
+
+
+def test_hard_move_blocks_opponent_win() -> None:
+    # O about to win at index 2 (row 0: O, O, _)
+    cells = ["O", "O", " ", "X", "X", " ", " ", " ", " "]
+    idx = VelhaBot.hard_move(cells[:], "X")
+    assert idx == 2  # must block
+
+
+def test_hard_move_takes_win() -> None:
+    # X at 0,3 can win at 6 (col 0)
+    cells = ["X", "O", " ", "X", "O", " ", " ", " ", " "]
+    idx = VelhaBot.hard_move(cells[:], "X")
+    assert idx == 6  # X wins col 0
+
+
+def test_hard_move_never_loses_from_start() -> None:
+    # Bot plays as O from empty board; human plays first at center
+    cells = [" "] * 9
+    cells[4] = "X"  # human takes center
+    idx = VelhaBot.hard_move(cells[:], "O")
+    assert 0 <= idx <= 8
+    assert cells[idx] == " "
