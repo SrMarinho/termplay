@@ -44,4 +44,4 @@ class ServerConnection:
         if not self._writer.is_closing():
             self._writer.close()
             with contextlib.suppress(Exception):
-                await self._writer.wait_closed()
+                await asyncio.wait_for(self._writer.wait_closed(), timeout=2.0)
