@@ -449,12 +449,13 @@ class BotCountModal(ModalScreen[int]):
         with Vertical(id="box"):
             yield Label("Quantos bots?", id="title")
             with Horizontal(id="row"):
-                yield Button("1", id="1", variant="primary")
-                yield Button("2", id="2", variant="primary")
-                yield Button("3", id="3", variant="primary")
+                yield Button("1", id="b1", variant="primary")
+                yield Button("2", id="b2", variant="primary")
+                yield Button("3", id="b3", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(int(event.button.id or "1"))
+        bid = str(event.button.id or "b1")
+        self.dismiss(int(bid[1:]))
 
 
 class UnoSoloScreen(UnoGameScreen):
