@@ -415,11 +415,54 @@ class UnoGameScreen(Screen[None]):
         self.app.pop_screen()
 
 
+class BotCountModal(ModalScreen[int]):
+    """Ask how many bots the player wants to face in solo mode."""
+
+    DEFAULT_CSS = """
+    BotCountModal { align: center middle; }
+    BotCountModal #box {
+        width: 40;
+        height: auto;
+        padding: 1 2;
+        border: thick $accent;
+        background: $surface;
+    }
+    BotCountModal #title {
+        width: 1fr;
+        text-align: center;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    BotCountModal #row {
+        width: 1fr;
+        height: auto;
+        align: center middle;
+    }
+    BotCountModal #row Button {
+        width: 1fr;
+        height: 3;
+        margin: 0 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="box"):
+            yield Label("Quantos bots?", id="title")
+            with Horizontal(id="row"):
+                yield Button("1", id="1", variant="primary")
+                yield Button("2", id="2", variant="primary")
+                yield Button("3", id="3", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(int(event.button.id or "1"))
+
+
 class UnoSoloScreen(UnoGameScreen):
     """UnoGameScreen wired to a local UnoController (solo vs bots, no server)."""
 
-    def __init__(self) -> None:
+    def __init__(self, num_bots: int = 3) -> None:
         super().__init__()
+        self._num_bots = max(1, min(num_bots, 9))
         from termplay.engine.local_transport import LocalTransportAdapter
         self._local = LocalTransportAdapter()
 
@@ -441,7 +484,7 @@ class UnoSoloScreen(UnoGameScreen):
         from termplay.engine.interfaces import ITransportAdapter
         from termplay.games.uno.controller import UnoController
 
-        bot_names = ["Bot 1", "Bot 2", "Bot 3"]
+        bot_names = [f"Bot {i + 1}" for i in range(self._num_bots)]
         bots: list[ITransportAdapter] = [BotTransportAdapter(n) for n in bot_names]
         transports: list[ITransportAdapter] = [self._local, *bots]
         names = ["Você"] + bot_names

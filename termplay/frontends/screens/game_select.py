@@ -91,8 +91,12 @@ class GameSelectScreen(Screen[str | None]):
         if game_class is None:
             return
         if game_name.lower() == "uno":
-            from termplay.frontends.screens.uno_screen import UnoSoloScreen
-            self.app.push_screen(UnoSoloScreen())
+            from termplay.frontends.screens.uno_screen import BotCountModal, UnoSoloScreen
+
+            def start(num: int | None) -> None:
+                self.app.push_screen(UnoSoloScreen(num_bots=num or 1))
+
+            self.app.push_screen(BotCountModal(), start)
         else:
             from termplay.frontends.screens.game import GameScreen
             self.app.push_screen(GameScreen(game_class))
