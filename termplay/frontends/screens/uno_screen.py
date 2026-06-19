@@ -83,6 +83,53 @@ class UnoColorModal(ModalScreen[str]):
         self.dismiss(str(event.button.id))
 
 
+class ConfirmModal(ModalScreen[bool]):
+    """Yes/no confirmation dialog."""
+
+    DEFAULT_CSS = """
+    ConfirmModal {
+        align: center middle;
+    }
+    ConfirmModal #box {
+        width: 50;
+        height: auto;
+        padding: 1 2;
+        border: thick $warning;
+        background: $surface;
+    }
+    ConfirmModal #q {
+        width: 1fr;
+        text-align: center;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    ConfirmModal #row {
+        width: 1fr;
+        height: auto;
+        align: center middle;
+    }
+    ConfirmModal #row Button {
+        width: 1fr;
+        height: 3;
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, question: str) -> None:
+        super().__init__()
+        self._question = question
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="box"):
+            yield Label(self._question, id="q")
+            with Horizontal(id="row"):
+                yield Button("Sair", id="yes", variant="error")
+                yield Button("Continuar", id="no", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "yes")
+
+
 class UnoGameScreen(Screen[None]):
     """Visual Uno board driven by structured server state."""
 
@@ -338,6 +385,13 @@ class UnoGameScreen(Screen[None]):
             await self._send(str(int(name) + 1))
 
     async def action_leave(self) -> None:
+        def done(confirm: bool | None) -> None:
+            if confirm:
+                self.run_worker(self._leave())
+
+        self.app.push_screen(ConfirmModal("Sair da partida de Uno?"), done)
+
+    async def _leave(self) -> None:
         app = cast("TermplayTUIApp", self.app)
         await app.disconnect_server()
         self.app.pop_screen()
