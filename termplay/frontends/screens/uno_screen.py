@@ -446,6 +446,13 @@ class BotCountModal(ModalScreen[int]):
     }
     """
 
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
+        Binding("right", "focus_next", show=False),
+        Binding("down", "focus_next", show=False),
+        Binding("left", "focus_previous", show=False),
+        Binding("up", "focus_previous", show=False),
+    ]
+
     def compose(self) -> ComposeResult:
         with Vertical(id="box"):
             yield Label("Quantos bots?", id="title")
@@ -453,6 +460,9 @@ class BotCountModal(ModalScreen[int]):
                 yield Button("1", id="b1", variant="primary")
                 yield Button("2", id="b2", variant="primary")
                 yield Button("3", id="b3", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#b1", Button).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = str(event.button.id or "b1")
