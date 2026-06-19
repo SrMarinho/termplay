@@ -14,6 +14,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from termplay.engine.game_log import GameLogger
 from termplay.engine.interfaces import ITransportAdapter
 from termplay.games.hangman.conf import STAGES, WORDS
 from termplay.games.hangman.state import HangmanState
@@ -75,6 +76,13 @@ class HangmanController:
             for t, n, s in zip(transports, _names, _stealth, strict=False)
         ]
         self._state = HangmanState(word=random.choice(WORDS).upper())
+        self._log = GameLogger("forca")
+        self._log.event(
+            "match_start",
+            players=[p.name for p in self._players],
+            word_len=len(self._state.word),
+            max_wrong=self._state.max_wrong,
+        )
 
     async def run(self) -> None:
         await self._broadcast_banner()
@@ -96,10 +104,19 @@ class HangmanController:
         await self._broadcast_end()
 
     async def _apply_guess(self, player: _Player, guess: str) -> None:
+        kind = "letter" if len(guess) == 1 else "word"
         if len(guess) == 1:
             correct = self._state.guess_letter(guess)
         else:
             correct = self._state.guess_word(guess)
+        self._log.event(
+            "guess",
+            player=player.name,
+            kind=kind,
+            value=guess,
+            hit=correct,
+            wrong=self._state.wrong,
+        )
         await self._broadcast_guess(player.name, guess, correct)
         await self._broadcast_board("")
 
@@ -183,6 +200,9 @@ class HangmanController:
     async def _broadcast_end(self) -> None:
         won = self._state.is_won
         word = self._state.word
+        self._log.event(
+            "match_end", outcome="win" if won else "lose", word=word
+        )
 
         async def send(p: _Player) -> None:
             if p.stealth:

@@ -12,6 +12,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from termplay.engine.game_log import GameLogger
 from termplay.engine.interfaces import ITransportAdapter
 from termplay.games.tictactoe.state import TicTacToeState
 
@@ -78,6 +79,12 @@ class TicTacToeController:
         for i, p in enumerate(self._players[:2]):
             p.mark = marks[i]
         self._state = TicTacToeState()
+        self._log = GameLogger("velha")
+        self._log.event(
+            "match_start",
+            players=[p.name for p in self._players],
+            marks={p.name: p.mark for p in self._players if p.mark},
+        )
 
     async def run(self) -> None:
         await self._broadcast_banner()
@@ -96,8 +103,12 @@ class TicTacToeController:
             idx = await self._get_move(player)
             if idx is None:
                 player.active = False
+                self._log.event("leave", player=player.name)
                 break
             self._state.place(idx, player.mark)
+            self._log.event(
+                "move", player=player.name, mark=player.mark, cell=idx + 1
+            )
             await self._broadcast_move(player, idx)
             await self._broadcast_board("")
             turn += 1
@@ -184,6 +195,11 @@ class TicTacToeController:
         win_mark = self._state.winner()
         winner = next((p for p in contenders if p.mark == win_mark), None)
         name = winner.name if winner else ""
+        self._log.event(
+            "match_end",
+            outcome="win" if win_mark else "draw",
+            winner=name or None,
+        )
 
         async def send(p: _Player) -> None:
             if p.stealth:

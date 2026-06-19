@@ -14,6 +14,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from termplay.engine.game_log import GameLogger
 from termplay.engine.interfaces import ITransportAdapter
 from termplay.games.uno.display import render_log_view
 from termplay.games.uno.state import COLORS, Card, UnoState
@@ -50,6 +51,14 @@ class UnoController:
         ]
         self._state = UnoState.new(len(self._players))
         self._message = ""
+        self._log = GameLogger("uno")
+        self._log.event(
+            "match_start",
+            players=self._names,
+            top=_face(self._state.top),
+            active_color=self._state.active_color,
+            hand_size=len(self._state.hands[0]),
+        )
 
     @property
     def _names(self) -> list[str]:
@@ -63,10 +72,23 @@ class UnoController:
                 self._state.advance()
                 continue
             await self._broadcast(active_idx=idx)
+            self._log.event(
+                "turn",
+                player=player.name,
+                idx=idx,
+                top=_face(self._state.top),
+                active_color=self._state.active_color,
+                direction=self._state.direction,
+                hand=len(self._state.hands[idx]),
+                playable=sum(
+                    self._state.playable(c) for c in self._state.hands[idx]
+                ),
+            )
             move = await self._get_move(player, idx)
             if move is None:
                 player.active = False
                 self._message = f"{player.name} saiu"
+                self._log.event("leave", player=player.name)
                 if sum(p.active for p in self._players) < 2:
                     break
                 self._state.advance()
@@ -81,6 +103,9 @@ class UnoController:
             drawn = self._state.draw(idx, 1)
             face = _face(drawn[0]) if drawn else "—"
             self._message = f"{player.name} comprou uma carta"
+            self._log.event(
+                "draw", player=player.name, card=face, hand=len(self._state.hands[idx])
+            )
             await self._notify_private(player, idx, f"Você comprou: {face}")
             self._state.advance()
             return
@@ -91,10 +116,19 @@ class UnoController:
         if card.is_wild:
             await self._broadcast(active_idx=idx, need_color_for=idx)
             chosen = await self._choose_color(player)
+            self._log.event("color_chosen", player=player.name, color=chosen)
         played = self._state.play(idx, move, chosen)
         color = self._state.active_color
         suffix = f" → {color}" if played.is_wild else ""
         self._message = f"{player.name} jogou {_face(played)}{suffix}"
+        self._log.event(
+            "play",
+            player=player.name,
+            card=_face(played),
+            active_color=color,
+            wild=played.is_wild,
+            hand=len(self._state.hands[idx]),
+        )
         if self._state.winner() is not None:
             return
         self._apply_effect(played)
@@ -104,12 +138,23 @@ class UnoController:
         if card.value == "reverse":
             self._state.direction *= -1
             self._state.advance(skip=two_players)
+            self._log.event(
+                "effect", type="reverse", direction=self._state.direction
+            )
         elif card.value == "skip":
             self._state.advance(skip=True)
+            self._log.event("effect", type="skip")
         elif card.value in ("draw2", "wild4"):
             victim = self._state.next_index()
-            self._state.draw(victim, 2 if card.value == "draw2" else 4)
+            count = 2 if card.value == "draw2" else 4
+            self._state.draw(victim, count)
             self._state.advance(skip=True)
+            self._log.event(
+                "effect",
+                type=card.value,
+                victim=self._players[victim].name,
+                drawn=count,
+            )
         else:
             self._state.advance()
 
@@ -193,6 +238,7 @@ class UnoController:
     async def _broadcast_over(self) -> None:
         win = self._state.winner()
         name = self._players[win].name if win is not None else ""
+        self._log.event("match_end", winner=name or None)
 
         async def send(i: int, p: _Player) -> None:
             if p.stealth:

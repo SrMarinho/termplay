@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from termplay.engine.game_log import GameLogger
 from termplay.games.blackjack.conf import BLACKJACK_PAYOUT, MIN_BET, STARTING_BALANCE
 from termplay.games.blackjack.display.log_renderer import LogRenderer
 from termplay.games.blackjack.display.renderer import RichRenderer
@@ -54,6 +55,9 @@ class MultiplayerGameController:
             _PlayerState(t, LogRenderer(t) if s else RichRenderer(t), n)
             for t, n, s in zip(transports, _names, _stealth, strict=False)
         ]
+        self._log = GameLogger("blackjack")
+        self._log.event("match_start", players=_names)
+        self._round = 0
 
     async def run(self) -> None:
         await asyncio.gather(*(
@@ -87,10 +91,24 @@ class MultiplayerGameController:
         if not active:
             return
 
+        self._round += 1
+        self._log.event(
+            "round_start",
+            round=self._round,
+            bets={p.name: p.bet for p in active},
+        )
+
         # Deal
         dealer_hand = Hand([deck.draw(), deck.draw()])
         for player in active:
             player.hand = Hand([deck.draw(), deck.draw()])
+
+        self._log.event(
+            "deal",
+            round=self._round,
+            dealer_up=dealer_hand.cards[0].display,
+            hands={p.name: p.hand.value for p in active},
+        )
 
         # Show initial table to all
         await self._broadcast_tables(active, dealer_hand)
@@ -116,6 +134,15 @@ class MultiplayerGameController:
                 res = self._rules.resolve(player.hand, dealer_hand)
             self._apply_result(player, res)
             results.append((player, res))
+            self._log.event(
+                "round_result",
+                round=self._round,
+                player=player.name,
+                outcome=res.name.lower(),
+                player_total=player.hand.value,
+                dealer_total=dealer_hand.value,
+                balance=player.balance,
+            )
 
         await self._broadcast_tables(active, dealer_hand, reveal_dealer=True)
         await asyncio.gather(*(
