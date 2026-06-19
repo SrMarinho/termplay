@@ -117,9 +117,18 @@ class UnoGameScreen(Screen[None]):
         padding: 0 2;
         margin: 0 1;
         border: round $panel-lighten-2;
+        color: $text-muted;
     }
     UnoGameScreen .turn {
         border: round $success;
+        background: $success 25%;
+        color: $text;
+        text-style: bold;
+    }
+    UnoGameScreen .turn-you {
+        border: thick $warning;
+        background: $warning 30%;
+        color: $text;
         text-style: bold;
     }
     UnoGameScreen #status {
@@ -252,11 +261,14 @@ class UnoGameScreen(Screen[None]):
         players = data.get("players", [])
         for i, entry in enumerate(players):
             name, count = str(entry[0]), int(entry[1])
-            mark = "★ " if i == you else ""
-            label = f"{mark}{name}\n🂠 x{count}"
+            is_turn = i == current
+            arrow = "▶ " if is_turn else "  "
+            mark = "★" if i == you else ""
+            header = f"{arrow}{name} {mark}".rstrip()
+            label = f"{header}\n  🂠 x{count}"
             chip = Static(label)
-            if i == current:
-                chip.add_class("turn")
+            if is_turn:
+                chip.add_class("turn-you" if i == you else "turn")
             bar.mount(chip)
 
     def _update_status(self, data: dict[str, Any]) -> None:
@@ -264,9 +276,9 @@ class UnoGameScreen(Screen[None]):
         current = int(data.get("current", -1))
         players = data.get("players", [])
         turn_name = str(players[current][0]) if 0 <= current < len(players) else "?"
-        text = f"Vez de [b]{turn_name}[/]"
+        text = f"⏳ Vez de [b green]{turn_name}[/]"
         if data.get("your_turn"):
-            text = "▶ [b]Sua vez![/] Clique numa carta ou compre."
+            text = "[b yellow]▶ SUA VEZ![/] Clique numa carta ou compre."
         if message:
             text = f"{message}   •   {text}"
         self.query_one("#status", Static).update(text)
