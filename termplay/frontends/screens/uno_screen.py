@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, HorizontalScroll, Vertical
+from textual.containers import Grid, Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Header, Label, Static
 
@@ -42,7 +42,7 @@ class UnoColorModal(ModalScreen[str]):
         align: center middle;
     }
     UnoColorModal #box {
-        width: 64;
+        width: 44;
         height: auto;
         padding: 1 2;
         border: thick $accent;
@@ -56,13 +56,13 @@ class UnoColorModal(ModalScreen[str]):
     }
     UnoColorModal #picker {
         width: 1fr;
-        height: auto;
-        align: center middle;
+        height: 10;
+        grid-size: 2 2;
+        grid-gutter: 1;
     }
     UnoColorModal #picker Button {
         width: 1fr;
-        height: 3;
-        margin: 0 1;
+        height: 1fr;
     }
     UnoColorModal .col-R { background: red; color: white; }
     UnoColorModal .col-G { background: green; color: white; }
@@ -73,11 +73,11 @@ class UnoColorModal(ModalScreen[str]):
     def compose(self) -> ComposeResult:
         with Vertical(id="box"):
             yield Label("Escolha a cor do coringa", id="title")
-            with Horizontal(id="picker"):
-                yield Button("Vermelho", id="R", classes="col-R")
-                yield Button("Verde", id="G", classes="col-G")
-                yield Button("Azul", id="B", classes="col-B")
-                yield Button("Amarelo", id="Y", classes="col-Y")
+            with Grid(id="picker"):
+                yield Button("🔴  Vermelho", id="R", classes="col-R")
+                yield Button("🟢  Verde", id="G", classes="col-G")
+                yield Button("🔵  Azul", id="B", classes="col-B")
+                yield Button("🟡  Amarelo", id="Y", classes="col-Y")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(str(event.button.id))
@@ -149,17 +149,18 @@ class UnoGameScreen(Screen[None]):
         margin-bottom: 1;
     }
     UnoGameScreen #pile {
-        width: 12;
-        height: 5;
+        width: 18;
+        height: 7;
         content-align: center middle;
         text-style: bold;
         border: heavy white;
         margin: 0 2;
     }
     UnoGameScreen #info {
-        width: 1fr;
-        height: 5;
+        width: auto;
+        height: 7;
         content-align: left middle;
+        padding: 0 2;
     }
     UnoGameScreen #opponents {
         height: auto;
@@ -175,13 +176,11 @@ class UnoGameScreen(Screen[None]):
     }
     UnoGameScreen .turn {
         border: round $success;
-        background: $success 25%;
         color: $text;
         text-style: bold;
     }
     UnoGameScreen .turn-you {
-        border: thick $warning;
-        background: $warning 30%;
+        border: round $warning;
         color: $text;
         text-style: bold;
     }
@@ -193,10 +192,15 @@ class UnoGameScreen(Screen[None]):
     }
     UnoGameScreen #hand {
         height: auto;
-        align: center middle;
+        max-height: 12;
         padding: 1 0;
     }
-    UnoGameScreen #hand Button {
+    UnoGameScreen .hand-row {
+        height: auto;
+        align: center middle;
+        margin-bottom: 1;
+    }
+    UnoGameScreen .hand-row Button {
         width: 8;
         min-width: 8;
         height: 3;
@@ -205,6 +209,9 @@ class UnoGameScreen(Screen[None]):
     UnoGameScreen #controls {
         height: auto;
         align: center middle;
+    }
+    UnoGameScreen #controls Button {
+        margin: 0 2;
     }
     UnoGameScreen .card-R { background: red; color: white; }
     UnoGameScreen .card-G { background: green; color: white; }
@@ -237,7 +244,7 @@ class UnoGameScreen(Screen[None]):
                 yield Static("", id="info")
             yield Horizontal(id="opponents")
             yield Static("Aguardando início...", id="status")
-            yield HorizontalScroll(id="hand")
+            yield ScrollableContainer(id="hand")
             with Horizontal(id="controls"):
                 yield Button(
                     "Comprar carta", id="draw", variant="primary", disabled=True
@@ -313,16 +320,20 @@ class UnoGameScreen(Screen[None]):
         current = int(data.get("current", -1))
         you = int(data.get("you", -1))
         players = data.get("players", [])
-        for i, entry in enumerate(players):
+        n = len(players)
+        if n == 0:
+            return
+        for i in range(n):
+            entry = players[i]
             name, count = str(entry[0]), int(entry[1])
             is_turn = i == current
-            arrow = "▶ " if is_turn else "  "
-            mark = "★" if i == you else ""
-            header = f"{arrow}{name} {mark}".rstrip()
-            label = f"{header}\n  🂠 x{count}"
+            is_you = i == you
+            turn_mark = "* " if is_turn else "  "
+            you_mark = " (você)" if is_you else ""
+            label = f"{turn_mark}{name}{you_mark}\n  🂠 x{count}"
             chip = Static(label)
             if is_turn:
-                chip.add_class("turn-you" if i == you else "turn")
+                chip.add_class("turn-you" if is_you else "turn")
             bar.mount(chip)
 
     def _update_status(self, data: dict[str, Any]) -> None:
@@ -330,9 +341,10 @@ class UnoGameScreen(Screen[None]):
         current = int(data.get("current", -1))
         players = data.get("players", [])
         turn_name = str(players[current][0]) if 0 <= current < len(players) else "?"
-        text = f"⏳ Vez de [b green]{turn_name}[/]"
-        if data.get("your_turn"):
-            text = "[b yellow]▶ SUA VEZ![/] Clique numa carta ou compre."
+        your_turn = bool(data.get("your_turn"))
+        text = f"Vez de {turn_name}"
+        if your_turn:
+            text = "Sua vez — clique numa carta ou compre."
         if message:
             text = f"{message}   •   {text}"
         self.query_one("#status", Static).update(text)
@@ -340,16 +352,22 @@ class UnoGameScreen(Screen[None]):
     async def _render_hand(
         self, hand: list[str], playable: list[int], *, enabled: bool
     ) -> None:
-        box = self.query_one("#hand", HorizontalScroll)
+        box = self.query_one("#hand", ScrollableContainer)
         await box.remove_children()
         playset = set(playable)
-        for i, face in enumerate(hand):
-            color, _, value = face.partition(":")
-            btn = Button(
-                f"{color} {_face(value)}", name=str(i), classes=f"card-{color}"
-            )
-            btn.disabled = not (enabled and i in playset)
-            box.mount(btn)
+        row_size = 10
+        rows = [hand[i : i + row_size] for i in range(0, len(hand), row_size)]
+        for row_idx, row in enumerate(rows):
+            row_widget = Horizontal(classes="hand-row")
+            await box.mount(row_widget)
+            for col_idx, face in enumerate(row):
+                i = row_idx * row_size + col_idx
+                color, _, value = face.partition(":")
+                btn = Button(
+                    f"{color} {_face(value)}", name=str(i), classes=f"card-{color}"
+                )
+                btn.disabled = not (enabled and i in playset)
+                await row_widget.mount(btn)
 
     # ── input ─────────────────────────────────────────────────────────────────
 

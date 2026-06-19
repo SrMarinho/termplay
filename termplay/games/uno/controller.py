@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -45,10 +46,12 @@ class UnoController:
     ) -> None:
         _names = names or [f"Player {i + 1}" for i in range(len(transports))]
         _stealth = stealth_flags or [False] * len(transports)
-        self._players = [
+        players = [
             _Player(t, n, s)
             for t, n, s in zip(transports, _names, _stealth, strict=False)
         ]
+        random.shuffle(players)
+        self._players = players
         self._state = UnoState.new(len(self._players))
         self._message = ""
         self._log = GameLogger("uno")
