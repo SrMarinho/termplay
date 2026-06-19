@@ -87,6 +87,7 @@ class UnoGameScreen(Screen[None]):
     UnoGameScreen #board {
         height: 1fr;
         padding: 1 2;
+        align: center middle;
     }
     UnoGameScreen #pilebar {
         height: auto;
