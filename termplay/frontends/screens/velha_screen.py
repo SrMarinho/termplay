@@ -44,12 +44,13 @@ class VelhaDifficultyModal(ModalScreen[str]):
         margin-bottom: 1;
     }
     VelhaDifficultyModal #btns {
-        height: auto;
+        height: 3;
         width: 1fr;
         margin-top: 1;
     }
     VelhaDifficultyModal #btns Button {
         width: 1fr;
+        height: 3;
         margin: 0 1;
     }
     """
