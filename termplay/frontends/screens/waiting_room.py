@@ -169,6 +169,10 @@ class WaitingRoomScreen(Screen[None]):
                 from termplay.frontends.screens.uno_screen import UnoGameScreen
 
                 screen = UnoGameScreen()
+            elif game.lower() == "velha" and not get_stealth():
+                from termplay.frontends.screens.velha_mp_screen import VelhaMpScreen
+
+                screen = VelhaMpScreen()
             else:
                 from termplay.frontends.screens.mp_game import MpGameScreen
 
