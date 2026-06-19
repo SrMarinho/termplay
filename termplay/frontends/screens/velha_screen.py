@@ -56,10 +56,10 @@ class VelhaDifficultyModal(ModalScreen[str]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="box"):
-            yield Label("Dificuldade", id="title")
+            yield Label("Difficulty", id="title")
             with Horizontal(id="btns"):
-                yield Button("Fácil", id="easy", variant="success")
-                yield Button("Difícil", id="hard", variant="error")
+                yield Button("Easy", id="easy", variant="success")
+                yield Button("Hard", id="hard", variant="error")
 
     def on_mount(self) -> None:
         self.query_one("#easy", Button).focus()
@@ -78,7 +78,7 @@ class VelhaScreen(Screen[None]):
     """Solo Velha: human (X) vs bot (O). Arrow keys move cursor, Enter places mark."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "leave", "Sair"),
+        ("escape", "leave", "Quit"),
     ]
 
     DEFAULT_CSS = """
@@ -143,18 +143,19 @@ class VelhaScreen(Screen[None]):
         self._state = TicTacToeState()
         self._cursor = 4
         self._game_over = False
+        self._bot_thinking = False
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="outer"):
-            yield Label("Você: X   Bot: O", id="info")
+            yield Label("You: X   Bot: O", id="info")
             with Grid(id="board"):
                 for i in range(9):
                     yield Static(str(i + 1), id=f"cell-{i}", classes="cell")
-            yield Label("Sua vez (X)", id="status")
+            yield Label("Your turn (X)", id="status")
             with Horizontal(id="actions"):
-                yield Button("Nova Partida", id="restart", variant="success")
-                yield Button("Sair", id="quit", variant="error")
+                yield Button("New Game", id="restart", variant="success")
+                yield Button("Quit", id="quit", variant="error")
 
     def on_mount(self) -> None:
         self._refresh_board()
@@ -184,13 +185,16 @@ class VelhaScreen(Screen[None]):
             self._try_place()
 
     def _try_place(self) -> None:
+        if self._bot_thinking:
+            return
         if self._state.cells[self._cursor] != " ":
             return
         self._state.place(self._cursor, "X")
         self._refresh_board()
         if self._check_end():
             return
-        self.query_one("#status", Label).update("Bot pensando...")
+        self._bot_thinking = True
+        self.query_one("#status", Label).update("Bot thinking...")
         self.run_worker(self._bot_turn(), exclusive=True)
 
     async def _bot_turn(self) -> None:
@@ -200,6 +204,7 @@ class VelhaScreen(Screen[None]):
         else:
             idx = VelhaBot.easy_move(self._state.cells[:])
         self._state.place(idx, "O")
+        self._bot_thinking = False
         self._refresh_board()
         self._check_end()
 
@@ -207,16 +212,16 @@ class VelhaScreen(Screen[None]):
         winner = self._state.winner()
         if winner:
             self._game_over = True
-            msg = "Você venceu! 🏆" if winner == "X" else "Bot venceu!"
+            msg = "You win! 🏆" if winner == "X" else "Bot wins!"
             self.query_one("#status", Label).update(msg)
             self.query_one("#actions").display = True
             return True
         if self._state.is_full:
             self._game_over = True
-            self.query_one("#status", Label).update("Empate!")
+            self.query_one("#status", Label).update("Draw!")
             self.query_one("#actions").display = True
             return True
-        self.query_one("#status", Label).update("Sua vez (X)")
+        self.query_one("#status", Label).update("Your turn (X)")
         return False
 
     def _refresh_board(self) -> None:
@@ -239,9 +244,10 @@ class VelhaScreen(Screen[None]):
         if event.button.id == "restart":
             self._state = TicTacToeState()
             self._game_over = False
+            self._bot_thinking = False
             self._cursor = 4
             self.query_one("#actions").display = False
-            self.query_one("#status", Label).update("Sua vez (X)")
+            self.query_one("#status", Label).update("Your turn (X)")
             self._refresh_board()
         elif event.button.id == "quit":
             self.app.pop_screen()

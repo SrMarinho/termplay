@@ -25,7 +25,7 @@ class VelhaMpScreen(Screen[None]):
     """Multiplayer Velha: native grid + arrow-key navigation. Sends moves to server."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "leave", "Sair"),
+        ("escape", "leave", "Quit"),
     ]
 
     DEFAULT_CSS = """
@@ -96,12 +96,12 @@ class VelhaMpScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="outer"):
-            yield Label("JOGO DA VELHA", id="title")
+            yield Label("TIC-TAC-TOE", id="title")
             with Grid(id="board"):
                 for i in range(9):
                     yield Static(str(i + 1), id=f"cell-{i}", classes="cell")
-            yield Label("Aguardando...", id="status")
-            yield Button("Sair [Esc]", id="quit-btn", variant="error")
+            yield Label("Waiting...", id="status")
+            yield Button("Quit [Esc]", id="quit-btn", variant="error")
         yield RichLog(id="stealth-log", markup=False, highlight=False, wrap=False)
 
     def on_mount(self) -> None:
@@ -137,7 +137,7 @@ class VelhaMpScreen(Screen[None]):
         elif mtype == TYPE_GAME_OVER:
             self._game_over = True
             if not get_stealth():
-                self.query_one("#status", Label).update("Fim de jogo (Esc para sair)")
+                self.query_one("#status", Label).update("Game over (Esc to quit)")
         elif mtype == TYPE_ERROR:
             if msg.get("fatal"):
                 await self._disconnect()
@@ -153,15 +153,15 @@ class VelhaMpScreen(Screen[None]):
 
         if self._game_over:
             if winner == self._my_mark:
-                status = "Você venceu! 🏆"
+                status = "You win! 🏆"
             elif winner:
-                status = "Oponente venceu!"
+                status = "Opponent wins!"
             else:
-                status = "Empate!"
+                status = "Draw!"
         elif self._my_turn:
-            status = f"Sua vez ({self._my_mark})! Use setas + Enter"
+            status = f"Your turn ({self._my_mark})! Arrows + Enter"
         else:
-            status = f"Vez do oponente ({turn})..."
+            status = f"Opponent's turn ({turn})..."
         self.query_one("#status", Label).update(status)
         self._refresh_board()
 
@@ -184,10 +184,9 @@ class VelhaMpScreen(Screen[None]):
     def on_key(self, event: Key) -> None:
         if event.key == "escape":
             return
-        if event.key in ("up", "down", "left", "right", "enter"):
-            event.stop()
-        if self._game_over or not self._my_turn:
+        if event.key not in ("up", "down", "left", "right", "enter"):
             return
+        event.stop()
         if event.key == "up":
             self._cursor = (self._cursor - 3) % 9
             self._refresh_board()
@@ -203,7 +202,7 @@ class VelhaMpScreen(Screen[None]):
             self._cursor = row * 3 + (col + 1) % 3
             self._refresh_board()
         elif event.key == "enter":
-            if self._cells[self._cursor] == " ":
+            if self._my_turn and not self._game_over and self._cells[self._cursor] == " ":
                 self.run_worker(self._send_move(self._cursor))
 
     async def _send_move(self, idx: int) -> None:
