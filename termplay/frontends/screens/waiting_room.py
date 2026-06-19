@@ -173,6 +173,8 @@ class WaitingRoomScreen(Screen[None]):
                 from termplay.frontends.screens.velha_mp_screen import VelhaMpScreen
 
                 screen = VelhaMpScreen()
+                self.app.push_screen(screen)
+                return  # screen registers its own handler on mount
             else:
                 from termplay.frontends.screens.mp_game import MpGameScreen
 

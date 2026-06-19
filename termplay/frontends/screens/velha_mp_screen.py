@@ -153,7 +153,7 @@ class VelhaMpScreen(Screen[None]):
 
         if self._game_over:
             if winner == self._my_mark:
-                status = "Voce venceu!"
+                status = "Você venceu! 🏆"
             elif winner:
                 status = "Oponente venceu!"
             else:
