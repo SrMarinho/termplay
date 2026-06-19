@@ -18,6 +18,8 @@ ACTION_START_GAME = "start_game"
 ACTION_CHAT = "chat"
 ACTION_LEAVE = "leave"
 ACTION_GAME_INPUT = "game_input"
+ACTION_ADD_BOT = "add_bot"    # host only: add a CPU bot to the room
+ACTION_KICK = "kick"          # host only: remove player by name (field: "target")
 
 # Tipos servidor → cliente
 TYPE_ROOM_CREATED = "room_created"

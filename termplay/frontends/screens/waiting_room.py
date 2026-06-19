@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Header, Input, RichLog, Static
 
 from termplay.engine.protocol import (
+    ACTION_ADD_BOT,
     ACTION_CHAT,
+    ACTION_KICK,
     ACTION_START_GAME,
     TYPE_CHAT,
     TYPE_ERROR,
@@ -69,8 +71,29 @@ class WaitingRoomScreen(Screen[None]):
         height: 1fr;
         padding: 0 1;
     }
-    WaitingRoomScreen #start {
+    WaitingRoomScreen .player-row {
+        height: auto;
+        align: left middle;
+        padding: 0 1;
+    }
+    WaitingRoomScreen .player-name {
+        width: 1fr;
+        content-align: left middle;
+    }
+    WaitingRoomScreen .kick-btn {
+        width: auto;
+        min-width: 6;
+        height: 1;
+    }
+    WaitingRoomScreen #host-actions {
+        height: auto;
         margin-top: 1;
+    }
+    WaitingRoomScreen #add-bot {
+        width: 1fr;
+        margin-bottom: 1;
+    }
+    WaitingRoomScreen #start {
         width: 1fr;
     }
     WaitingRoomScreen #chat {
@@ -99,11 +122,13 @@ class WaitingRoomScreen(Screen[None]):
                 yield Static("Sala: ----", id="code")
                 if self._is_host and self._host_addr:
                     yield Static(f"Compartilhe: {self._host_addr}", id="share")
-                yield Static("Aguardando...", id="players")
+                yield ScrollableContainer(id="players")
                 if self._is_host:
-                    yield Button(
-                        "Iniciar Partida", id="start", variant="success", disabled=True
-                    )
+                    with Vertical(id="host-actions"):
+                        yield Button("+ Add Bot", id="add-bot", variant="primary")
+                        yield Button(
+                            "Iniciar Partida", id="start", variant="success", disabled=True
+                        )
             with Vertical(id="right"):
                 yield RichLog(id="chat", markup=False, highlight=False, wrap=True)
                 yield Input(placeholder="Mensagem de chat...", id="chat-input")
@@ -159,26 +184,53 @@ class WaitingRoomScreen(Screen[None]):
                 self.app.pop_screen()
 
     def _update_state(self, msg: dict[str, Any]) -> None:
-        players = msg.get("players") or []
-        host = msg.get("host")
+        players: list[str] = list(msg.get("players") or [])
+        bots: set[str] = set(msg.get("bots") or [])
+        host = str(msg.get("host") or "")
         count = msg.get("player_count", len(players))
         max_p = msg.get("max_players", 4)
-        lines = [f"Players ({count}/{max_p}):"]
-        for name in players:
-            tag = " (líder)" if name == host else ""
-            lines.append(f"  • {name}{tag}")
-        self.query_one("#players", Static).update("\n".join(lines))
+
+        container = self.query_one("#players", ScrollableContainer)
+        self.run_worker(self._rebuild_players(container, players, bots, host, count, max_p))
+
         if self._is_host:
-            btn = self.query_one("#start", Button)
-            btn.disabled = not bool(msg.get("can_start"))
+            self.query_one("#start", Button).disabled = not bool(msg.get("can_start"))
+
+    async def _rebuild_players(
+        self,
+        container: ScrollableContainer,
+        players: list[str],
+        bots: set[str],
+        host: str,
+        count: int,
+        max_p: int,
+    ) -> None:
+        await container.remove_children()
+        await container.mount(Static(f"Players ({count}/{max_p}):"))
+        for name in players:
+            row = Horizontal(classes="player-row")
+            await container.mount(row)
+            tag = " 🤖" if name in bots else (" (líder)" if name == host else "")
+            await row.mount(Static(f"• {name}{tag}", classes="player-name"))
+            if self._is_host and name != self._my_name:
+                kick_btn = Button("✕", classes="kick-btn", variant="error", name=name)
+                await row.mount(kick_btn)
 
     # ── Ações ────────────────────────────────────────────────────────────────
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "start":
-            app = cast("TermplayTUIApp", self.app)
-            if app.connection is not None:
-                await app.connection.send(action=ACTION_START_GAME)
+        app = cast("TermplayTUIApp", self.app)
+        if app.connection is None:
+            return
+        bid = event.button.id
+        if bid == "start":
+            await app.connection.send(action=ACTION_START_GAME)
+        elif bid == "add-bot":
+            await app.connection.send(action=ACTION_ADD_BOT)
+        elif "kick-btn" in event.button.classes:
+            target = event.button.name or ""
+            if target:
+                await app.connection.send(action=ACTION_KICK, target=target)
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()

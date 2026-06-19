@@ -15,10 +15,12 @@ from typing import TYPE_CHECKING
 
 from termplay.engine.discovery import RoomBroadcaster
 from termplay.engine.protocol import (
+    ACTION_ADD_BOT,
     ACTION_CHAT,
     ACTION_CREATE_ROOM,
     ACTION_GAME_INPUT,
     ACTION_JOIN_ROOM,
+    ACTION_KICK,
     ACTION_LEAVE,
     ACTION_START_GAME,
     TYPE_CHAT,
@@ -133,6 +135,10 @@ class TermPlayServer:
                 )
             elif action == ACTION_CHAT:
                 await self._broadcast_chat(room, name, str(msg.get("text") or ""))
+            elif action == ACTION_ADD_BOT:
+                await self._add_bot(room)
+            elif action == ACTION_KICK:
+                await self._kick_player(room, str(msg.get("target") or ""))
 
         room.ready.set()
         self._broadcaster.update(status="playing")
@@ -260,6 +266,7 @@ class TermPlayServer:
             code=room.code,
             host=room.host.name,
             players=[p.name for p in room.players],
+            bots=[p.name for p in room.players if p.is_bot],
             player_count=room.player_count,
             min_players=MIN_PLAYERS,
             max_players=room.max_players,
@@ -269,6 +276,31 @@ class TermPlayServer:
     async def _broadcast_chat(self, room: Room, name: str, text: str) -> None:
         if text:
             await self._broadcast(room, type=TYPE_CHAT, name=name, text=text)
+
+    async def _add_bot(self, room: Room) -> None:
+        if room.is_full:
+            return
+        from termplay.engine.bot_transport import BotTransportAdapter
+
+        bot_num = sum(1 for p in room.players if p.is_bot) + 1
+        bot_name = f"Bot {bot_num}"
+        bot = RoomPlayer(
+            name=bot_name,
+            transport=BotTransportAdapter(bot_name),
+            is_bot=True,
+        )
+        room.add_player(bot)
+        await self._broadcast_state(room)
+
+    async def _kick_player(self, room: Room, target: str) -> None:
+        player = next((p for p in room.players if p.name == target), None)
+        if player is None or player is room.host:
+            return
+        room.remove_player(player)
+        if not player.is_bot:
+            with contextlib.suppress(Exception):
+                await player.transport.close()
+        await self._broadcast_state(room)
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
