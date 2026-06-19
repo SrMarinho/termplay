@@ -42,19 +42,26 @@ class UnoColorModal(ModalScreen[str]):
         align: center middle;
     }
     UnoColorModal #box {
-        width: 44;
+        width: 64;
         height: auto;
         padding: 1 2;
         border: thick $accent;
         background: $surface;
     }
     UnoColorModal #title {
+        width: 1fr;
         text-align: center;
         text-style: bold;
         margin-bottom: 1;
     }
+    UnoColorModal #picker {
+        width: 1fr;
+        height: auto;
+        align: center middle;
+    }
     UnoColorModal #picker Button {
         width: 1fr;
+        height: 3;
         margin: 0 1;
     }
     UnoColorModal .col-R { background: red; color: white; }
