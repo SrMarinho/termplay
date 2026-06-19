@@ -87,14 +87,33 @@ class UnoController:
             move = await self._get_move(player, idx)
             if move is None:
                 player.active = False
-                self._message = f"{player.name} saiu"
+                self._message = f"{player.name} saiu da partida"
                 self._log.event("leave", player=player.name)
-                if sum(p.active for p in self._players) < 2:
+                remaining = sum(p.active for p in self._players)
+                await self._notify_left(player)
+                if remaining < 2:
                     break
                 self._state.advance()
                 continue
             await self._apply_move(player, idx, move)
         await self._broadcast_over()
+
+    async def _notify_left(self, gone: _Player) -> None:
+        """Tell remaining players that someone left."""
+        async def send(p: _Player) -> None:
+            if p is gone or not p.active:
+                return
+            if p.stealth:
+                return  # reflected in next table broadcast
+            data = {
+                "v": UNO_STATE_TAG,
+                "phase": "toast",
+                "you": self._players.index(p),
+                "message": f"👋 {gone.name} saiu da partida",
+            }
+            await self._safe_write(p, json.dumps(data) + "\n")
+
+        await asyncio.gather(*(send(p) for p in self._players))
 
     # ── moves ─────────────────────────────────────────────────────────────────
 
@@ -185,6 +204,13 @@ class UnoController:
 
     # ── output ──────────────────────────────────────────────────────────────
 
+    async def _safe_write(self, player: _Player, text: str) -> None:
+        """Write to a player, dropping them if the transport is dead."""
+        try:
+            await player.transport.write(text)
+        except (ConnectionError, OSError):
+            player.active = False
+
     def _payload(self, idx: int, *, your_turn: bool, need_color: bool) -> str:
         st = self._state
         data = {
@@ -211,29 +237,32 @@ class UnoController:
         self, *, active_idx: int, need_color_for: int | None = None
     ) -> None:
         async def send(i: int, p: _Player) -> None:
+            if not p.active:
+                return
             if p.stealth:
-                await p.transport.write(
+                await self._safe_write(
+                    p,
                     render_log_view(
                         self._state, self._names, i,
                         is_active=(i == active_idx and need_color_for is None),
                         message=self._message,
-                    )
+                    ),
                 )
             else:
                 need = need_color_for == i
                 turn = i == active_idx and need_color_for is None
-                await p.transport.write(
-                    self._payload(i, your_turn=turn, need_color=need)
+                await self._safe_write(
+                    p, self._payload(i, your_turn=turn, need_color=need)
                 )
 
         await asyncio.gather(*(send(i, p) for i, p in enumerate(self._players)))
         self._message = ""
 
     async def _notify_private(self, player: _Player, idx: int, text: str) -> None:
-        if player.stealth:
+        if player.stealth or not player.active:
             return  # private draw already implied by next table broadcast
         data = {"v": UNO_STATE_TAG, "phase": "toast", "you": idx, "message": text}
-        await player.transport.write(json.dumps(data) + "\n")
+        await self._safe_write(player, json.dumps(data) + "\n")
 
     async def _broadcast_over(self) -> None:
         win = self._state.winner()
@@ -241,15 +270,18 @@ class UnoController:
         self._log.event("match_end", winner=name or None)
 
         async def send(i: int, p: _Player) -> None:
+            if not p.active:
+                return
             if p.stealth:
-                await p.transport.write(
+                await self._safe_write(
+                    p,
                     render_log_view(
                         self._state, self._names, i, is_active=False,
                         message=f"round.result winner={name or '-'}",
-                    )
+                    ),
                 )
             else:
                 data = {"v": UNO_STATE_TAG, "phase": "over", "you": i, "winner": name}
-                await p.transport.write(json.dumps(data) + "\n")
+                await self._safe_write(p, json.dumps(data) + "\n")
 
         await asyncio.gather(*(send(i, p) for i, p in enumerate(self._players)))
