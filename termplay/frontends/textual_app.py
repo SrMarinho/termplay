@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, ClassVar
 
 from textual.app import App
+from textual.binding import Binding
 
 import termplay.games.blackjack.plugin  # registra Blackjack no GameRegistry
 import termplay.games.hangman.plugin  # registra Forca
@@ -21,6 +24,11 @@ class TermplayTUIApp(App[None]):
     """TUI completo para termplay — solo e multiplayer."""
 
     TITLE = "termplay"
+
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
+        Binding("ctrl+q", "quit", "Sair", priority=True),
+        Binding("ctrl+c", "quit", "Sair", priority=True, show=False),
+    ]
 
     def __init__(self) -> None:
         super().__init__()
@@ -64,8 +72,16 @@ class TermplayTUIApp(App[None]):
             from termplay.engine.server import TermPlayServer
 
             if isinstance(self._embedded_server, TermPlayServer):
-                await self._embedded_server.stop()
+                # Bounded: never let a stuck shutdown freeze the terminal.
+                with contextlib.suppress(TimeoutError, Exception):
+                    await asyncio.wait_for(self._embedded_server.stop(), timeout=3.0)
             self._embedded_server = None
+
+    async def action_quit(self) -> None:
+        """Tear down networking with a timeout, then exit so the TTY restores."""
+        with contextlib.suppress(Exception):
+            await self.disconnect_server()
+        self.exit()
 
     async def disconnect_server(self) -> None:
         if self.connection is not None:

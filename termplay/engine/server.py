@@ -52,6 +52,7 @@ class TermPlayServer:
         self._server: asyncio.Server | None = None
         self._broadcaster = RoomBroadcaster()
         self._broadcast_task: asyncio.Task[None] | None = None
+        self._clients: set[asyncio.Task[None]] = set()
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(
@@ -63,6 +64,9 @@ class TermPlayServer:
     async def _handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        task = asyncio.current_task()
+        if task is not None:
+            self._clients.add(task)
         peer = writer.get_extra_info("peername")
         logger.info(f"Conexão aceita de {peer}")
         adapter = ProtocolServerAdapter(reader, writer)
@@ -91,6 +95,8 @@ class TermPlayServer:
             logger.exception(f"Erro na sessão de {peer}")
         finally:
             await adapter.close()
+            if task is not None:
+                self._clients.discard(task)
             logger.info(f"Conexão fechada para {peer}")
 
     # ── Host ─────────────────────────────────────────────────────────────────
@@ -279,7 +285,17 @@ class TermPlayServer:
             self._broadcast_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._broadcast_task
+        # Cancel in-flight client handlers (game loops, relays) so the event
+        # loop has nothing left blocking shutdown.
+        clients = list(self._clients)
+        self._clients.clear()
+        for task in clients:
+            task.cancel()
+        for task in clients:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
         if self._server:
             self._server.close()
-            await self._server.wait_closed()
+            with contextlib.suppress(Exception):
+                await self._server.wait_closed()
             logger.info("Servidor parado")
