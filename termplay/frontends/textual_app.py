@@ -28,6 +28,10 @@ class TermplayTUIApp(App[None]):
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("ctrl+q", "quit", "Sair", priority=True),
         Binding("ctrl+c", "quit", "Sair", priority=True, show=False),
+        Binding("right", "focus_next", show=False),
+        Binding("down", "focus_next", show=False),
+        Binding("left", "focus_previous", show=False),
+        Binding("up", "focus_previous", show=False),
     ]
 
     def __init__(self) -> None:
