@@ -413,3 +413,49 @@ class UnoGameScreen(Screen[None]):
         app = cast("TermplayTUIApp", self.app)
         await app.disconnect_server()
         self.app.pop_screen()
+
+
+class UnoSoloScreen(UnoGameScreen):
+    """UnoGameScreen wired to a local UnoController (solo vs bots, no server)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        from termplay.engine.local_transport import LocalTransportAdapter
+        self._local = LocalTransportAdapter()
+
+    def on_mount(self) -> None:
+        async def on_write(text: str) -> None:
+            for line in text.splitlines():
+                line = line.strip()
+                if line:
+                    await self.on_server_message(
+                        {"type": TYPE_GAME_RENDER, "content": line}
+                    )
+
+        self._local.set_write_callback(on_write)
+        super().on_mount()
+        self.run_worker(self._run_controller())
+
+    async def _run_controller(self) -> None:
+        from termplay.engine.bot_transport import BotTransportAdapter
+        from termplay.engine.interfaces import ITransportAdapter
+        from termplay.games.uno.controller import UnoController
+
+        bot_names = ["Bot 1", "Bot 2", "Bot 3"]
+        bots: list[ITransportAdapter] = [BotTransportAdapter(n) for n in bot_names]
+        transports: list[ITransportAdapter] = [self._local, *bots]
+        names = ["Você"] + bot_names
+        controller = UnoController(
+            transports,
+            names=names,
+            stealth_flags=[False] * len(names),
+        )
+        await controller.run()
+        await self.on_server_message({"type": TYPE_GAME_OVER})
+
+    async def _send(self, text: str) -> None:
+        await self._local.feed(text)
+
+    async def _leave(self) -> None:
+        await self._local.feed("q")
+        self.app.pop_screen()

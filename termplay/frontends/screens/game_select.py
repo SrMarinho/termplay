@@ -90,8 +90,12 @@ class GameSelectScreen(Screen[str | None]):
         game_class = GameRegistry.get(game_name)
         if game_class is None:
             return
-        from termplay.frontends.screens.game import GameScreen
-        self.app.push_screen(GameScreen(game_class))
+        if game_name.lower() == "uno":
+            from termplay.frontends.screens.uno_screen import UnoSoloScreen
+            self.app.push_screen(UnoSoloScreen())
+        else:
+            from termplay.frontends.screens.game import GameScreen
+            self.app.push_screen(GameScreen(game_class))
 
     def action_cancel(self) -> None:
         if self._select_mode:
