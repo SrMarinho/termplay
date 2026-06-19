@@ -58,8 +58,8 @@ class VelhaDifficultyModal(ModalScreen[str]):
         with Vertical(id="box"):
             yield Label("Dificuldade", id="title")
             with Horizontal(id="btns"):
-                yield Button("Facil", id="easy", variant="success")
-                yield Button("Dificil", id="hard", variant="error")
+                yield Button("Fácil", id="easy", variant="success")
+                yield Button("Difícil", id="hard", variant="error")
 
     def on_mount(self) -> None:
         self.query_one("#easy", Button).focus()
@@ -147,7 +147,7 @@ class VelhaScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="outer"):
-            yield Label("Voce: X   Bot: O", id="info")
+            yield Label("Você: X   Bot: O", id="info")
             with Grid(id="board"):
                 for i in range(9):
                     yield Static(str(i + 1), id=f"cell-{i}", classes="cell")
@@ -162,10 +162,10 @@ class VelhaScreen(Screen[None]):
     def on_key(self, event: Key) -> None:
         if event.key == "escape":
             return
-        if event.key in ("up", "down", "left", "right", "enter", "space"):
-            event.stop()
         if self._game_over:
             return
+        if event.key in ("up", "down", "left", "right", "enter", "space"):
+            event.stop()
         if event.key == "up":
             self._cursor = (self._cursor - 3) % 9
             self._refresh_board()
@@ -195,11 +195,10 @@ class VelhaScreen(Screen[None]):
 
     async def _bot_turn(self) -> None:
         await asyncio.sleep(0.4)
-        cells_copy = self._state.cells[:]
         if self._difficulty == "hard":
-            idx = VelhaBot.hard_move(cells_copy, "O")
+            idx = VelhaBot.hard_move(self._state.cells[:], "O")
         else:
-            idx = VelhaBot.easy_move(cells_copy)
+            idx = VelhaBot.easy_move(self._state.cells[:])
         self._state.place(idx, "O")
         self._refresh_board()
         self._check_end()
@@ -208,7 +207,7 @@ class VelhaScreen(Screen[None]):
         winner = self._state.winner()
         if winner:
             self._game_over = True
-            msg = "Voce venceu!" if winner == "X" else "Bot venceu!"
+            msg = "Você venceu! 🏆" if winner == "X" else "Bot venceu!"
             self.query_one("#status", Label).update(msg)
             self.query_one("#actions").display = True
             return True
