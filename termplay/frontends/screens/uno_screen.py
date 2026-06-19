@@ -439,9 +439,10 @@ class BotCountModal(ModalScreen[int]):
         align: center middle;
     }
     BotCountModal #row Button {
-        width: 1fr;
+        width: auto;
+        min-width: 10;
         height: 3;
-        margin: 0 1;
+        margin: 0 2;
     }
     """
 
