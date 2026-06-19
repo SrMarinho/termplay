@@ -93,10 +93,20 @@ class GameSelectScreen(Screen[str | None]):
         if game_name.lower() == "uno":
             from termplay.frontends.screens.uno_screen import BotCountModal, UnoSoloScreen
 
-            def start(num: int | None) -> None:
+            def start_uno(num: int | None) -> None:
                 self.app.push_screen(UnoSoloScreen(num_bots=num or 1))
 
-            self.app.push_screen(BotCountModal(), start)
+            self.app.push_screen(BotCountModal(), start_uno)
+        elif game_name.lower() == "velha":
+            from termplay.frontends.screens.velha_screen import (
+                VelhaDifficultyModal,
+                VelhaScreen,
+            )
+
+            def start_velha(difficulty: str | None) -> None:
+                self.app.push_screen(VelhaScreen(difficulty=difficulty or "easy"))
+
+            self.app.push_screen(VelhaDifficultyModal(), start_velha)
         else:
             from termplay.frontends.screens.game import GameScreen
             self.app.push_screen(GameScreen(game_class))
