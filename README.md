@@ -1,100 +1,64 @@
-# termplay — engine de jogos no terminal via TCP
+# termplay — multiplayer games in the terminal
 
-Engine de jogos para terminal, extensível por plugins. Cliente TUI (Textual) e
-servidor multiplayer falam um protocolo JSON sobre TCP. Vem com Blackjack — solo
-contra o dealer ou multiplayer em salas com chat.
+Terminal game platform with a full Textual TUI. Play over LAN with friends — no browser, no server setup, just install and run.
 
-## Instalação
+**Bundled games:** Uno · Blackjack · Forca (Hangman) · Velha (Tic-tac-toe)
 
-```bash
-# Como ferramenta global (recomendado) — instala os executáveis termplay e termplay-server
-uv tool install .
-# ou a partir do diretório do projeto
-uv tool install "C:/caminho/para/py21ssh"
-
-# Com pip
-pip install .
-```
-
-Isso registra dois comandos:
-
-| Comando | Função |
-|---------|--------|
-| `termplay` | Cliente TUI (solo e multiplayer) |
-| `termplay-server` | Servidor multiplayer (TCP, default `0.0.0.0:4443`) |
-
-## Uso
-
-### Solo (sem servidor)
+## Install
 
 ```bash
-termplay        # → Solo → Blackjack → joga contra o dealer
+pip install git+https://github.com/SrMarinho/termplay.git
 ```
 
-### Multiplayer (servidor + 2+ clientes)
+Requires Python 3.11+.
+
+## Play
 
 ```bash
-# Terminal 1 — servidor
-termplay-server                       # 0.0.0.0:4443
-termplay-server --host 0.0.0.0 --port 4443
-
-# Terminal 2 — líder
-termplay   # → Multiplayer → Criar Sala → copia o código
-
-# Terminal 3 — convidado
-termplay   # → Multiplayer → Entrar Sala → digita o código
+termplay
 ```
 
-O líder vê os jogadores entrando ao vivo; o botão **Iniciar Partida** habilita
-ao atingir o mínimo de jogadores. Sala tem chat.
+The TUI walks you through everything: solo games, creating a room, or joining a friend's room on the same network.
 
-### Configuração
+### Multiplayer (LAN)
 
-`termplay` → **Configuração** → salva o nickname entre execuções
-(`%APPDATA%/termplay/config.json` no Windows, `~/.config/termplay/config.json` no POSIX).
+**Host:**
+1. Open `termplay` → Multiplayer → Create Room → pick a game → wait for friends → Start
 
-## Desenvolvimento
+**Guest:**
+1. Open `termplay` → Multiplayer → rooms appear automatically via LAN discovery → Join
+
+No manual IP needed — rooms are discovered automatically. If discovery fails, join by IP/port manually.
+
+## Development
 
 ```bash
-uv sync --extra dev          # deps de dev (pytest, mypy, ruff)
+git clone https://github.com/SrMarinho/termplay.git
+cd termplay
+uv sync --extra dev
 
-uv run python -m pytest tests/ -q    # testes
-uv run python -m mypy termplay/ --strict  # type checking
-uv run python -m ruff check termplay/     # lint
+uv run python -m pytest tests/ -q
+uv run python -m mypy termplay/ --strict
+uv run python -m ruff check termplay/
 ```
 
-## Arquitetura
+## Architecture
 
 ```
 termplay/
-├── engine/             # núcleo agnóstico de jogo
-│   ├── registry.py     #   GameRegistry — plugins se registram via @register
-│   ├── game.py         #   IGame — contrato de plugin
-│   ├── room.py         #   Room/RoomManager — salas multiplayer
-│   ├── protocol.py     #   protocolo JSON delimitado por linha
-│   ├── protocol_adapter.py #  adapter server-side do protocolo
-│   ├── server.py       #   servidor TCP (só comunicação)
-│   └── transport/      #   adapters TCP/queued
-├── frontends/          # cliente TUI (Textual)
-│   ├── net.py          #   ServerConnection — transporte do cliente
-│   ├── textual_app.py  #   App + listener central
-│   └── screens/        #   telas nativas (home, salas, jogo, config)
-├── games/
-│   └── blackjack/      # plugin Blackjack (domain/application/display)
-└── config/             # persistência de settings (nickname)
+├── engine/          # transport-agnostic core (rooms, protocol, server, game log)
+├── frontends/       # Textual TUI (screens, net client)
+├── games/           # game plugins (blackjack, uno, hangman, tictactoe)
+└── config/          # persistent settings (nickname)
 ```
 
-O servidor é **só comunicação**: recebe ações JSON, gerencia salas e repassa
-I/O do jogo. O cliente renderiza telas nativas — sem dump de ANSI cru.
+Games register themselves via `GameRegistry` (solo) and `MultiplayerRegistry` (multiplayer).
+Server speaks newline-delimited JSON over TCP. Client is a pure Textual shell — no raw ANSI.
 
-## Adicionar um jogo
+## Adding a game
 
-1. Criar `termplay/games/<jogo>/plugin.py` implementando `IGame`.
-2. Registrar com `@GameRegistry.register(...)`.
-3. Importar o plugin em `games/__init__.py` para auto-registro.
+1. Create `termplay/games/<name>/plugin.py` implementing `IGame` and/or `IMultiplayerController`.
+2. Register with `@GameRegistry.register(...)` / `MultiplayerRegistry.register(...)`.
+3. Import the plugin in `textual_app.py` for auto-registration.
 
-## Segurança
-
-- **Zero shell**: o servidor não spawna shell nem `subprocess`.
-- **Zero eval**: nenhuma entrada do usuário passa por `eval()`/`exec()`.
-- **Task isolada**: cada cliente roda em `asyncio.Task` separada.
+See `termplay/games/uno/` for a full multiplayer example.
