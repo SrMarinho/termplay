@@ -472,6 +472,8 @@ class BotCountModal(ModalScreen[int]):
 class UnoSoloScreen(UnoGameScreen):
     """UnoGameScreen wired to a local UnoController (solo vs bots, no server)."""
 
+    DEFAULT_CSS = UnoGameScreen.DEFAULT_CSS.replace("UnoGameScreen", "UnoSoloScreen")
+
     def __init__(self, num_bots: int = 3) -> None:
         super().__init__()
         self._num_bots = max(1, min(num_bots, 9))
