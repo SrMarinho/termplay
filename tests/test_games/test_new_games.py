@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from termplay.games.hangman.state import HangmanState
 from termplay.games.tictactoe.state import TicTacToeState
 from termplay.games.uno.state import Card, UnoState, build_deck

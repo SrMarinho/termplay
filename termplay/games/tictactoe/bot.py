@@ -47,6 +47,8 @@ class VelhaBot:
     @staticmethod
     def easy_move(cells: list[str]) -> int:
         empty = [i for i, c in enumerate(cells) if c == " "]
+        if not empty:
+            raise ValueError("no empty cells")
         return random.choice(empty)
 
     @staticmethod
@@ -61,6 +63,8 @@ class VelhaBot:
                 if score > best_score:
                     best_score = score
                     best_idx = i
+        if best_idx == -1:
+            raise ValueError("no empty cells")
         return best_idx
 
 
