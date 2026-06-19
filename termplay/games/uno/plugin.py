@@ -27,11 +27,8 @@ class Uno(IGame):
 
     @override
     async def run(self, transport: ITransportAdapter) -> None:
-        await transport.write(
-            "\r\nUno precisa de 2+ jogadores. Use o modo multiplayer.\r\n"
-            "Pressione Enter para voltar..."
-        )
-        await transport.read_line()
+        from termplay.games.uno.solo import UnoSoloGame
+        await UnoSoloGame().run(transport)
 
     @override
     async def show_help(self, transport: ITransportAdapter) -> None:
