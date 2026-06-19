@@ -51,8 +51,9 @@ def _make_controller(
     all_transports = list(transports)
     all_names = list(names) if names else [f"Player {i+1}" for i in range(len(transports))]
     while len(all_transports) < 2:
+        bot_num = len(all_transports) + 1
         all_transports.append(VelhaBotTransportAdapter("hard"))
-        all_names.append(f"Bot {len(all_transports)}")
+        all_names.append(f"Bot {bot_num}")
     return TicTacToeController(all_transports, all_names, stealth_flags)
 
 

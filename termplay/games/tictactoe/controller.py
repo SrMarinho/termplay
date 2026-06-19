@@ -58,7 +58,7 @@ class TicTacToeController:
     async def run(self) -> None:
         contenders = [p for p in self._players if p.mark]
         if len(contenders) < 2:
-            await self._broadcast("play", "")
+            await self._broadcast("over", "")
             return
         await self._broadcast("play", "")
         turn = 0
