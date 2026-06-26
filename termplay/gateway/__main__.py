@@ -21,6 +21,12 @@ def parse_args() -> argparse.Namespace:
         "--http-port", type=int, default=8080, help="HTTP/WebSocket port"
     )
     parser.add_argument(
+        "--server",
+        default="127.0.0.1:4443",
+        metavar="HOST:PORT",
+        help="Game server address for room creation (default: 127.0.0.1:4443)",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -28,11 +34,17 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def _run(bind: str, http_port: int) -> None:
-    gateway = WebGateway(bind, http_port)
+def _parse_server(addr: str) -> tuple[str, int]:
+    host, _, port_str = addr.rpartition(":")
+    return (host or "127.0.0.1", int(port_str or "4443"))
+
+
+async def _run(bind: str, http_port: int, game_server: tuple[str, int]) -> None:
+    gateway = WebGateway(bind, http_port, game_server)
     await gateway.start()
     print(f"termplay web gateway on http://{bind}:{http_port}")
-    print("Open it in a browser and join a room. Ctrl+C to stop.")
+    print(f"Game server: {game_server[0]}:{game_server[1]}")
+    print("Open in a browser — create or join a room. Ctrl+C to stop.")
     try:
         await gateway.serve_forever()
     finally:
@@ -47,7 +59,7 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
     try:
-        asyncio.run(_run(args.bind, args.http_port))
+        asyncio.run(_run(args.bind, args.http_port, _parse_server(args.server)))
     except KeyboardInterrupt:
         print("\nGateway stopped.")
 

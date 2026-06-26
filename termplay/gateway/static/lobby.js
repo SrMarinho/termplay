@@ -1,11 +1,20 @@
-// lobby.js — room list + lobby (players, chat). Pure view; callbacks injected.
-let handlers = { onJoin: () => {}, onChat: () => {}, onLeave: () => {} };
+// lobby.js — room list + lobby (players, chat, host controls). Pure view.
+let handlers = {
+  onJoin: () => {}, onChat: () => {}, onLeave: () => {},
+  onStart: () => {}, onAddBot: () => {},
+};
+let role = "guest"; // "host" | "guest"
+let myName = "";
 
 const roomList = document.getElementById("room-list");
 const noRooms = document.getElementById("no-rooms");
 const lobbyCode = document.getElementById("lobby-code");
 const lobbyPlayers = document.getElementById("lobby-players");
 const chatLog = document.getElementById("chat-log");
+const hostControls = document.getElementById("host-controls");
+const guestWait = document.getElementById("guest-wait");
+const startBtn = document.getElementById("start-btn");
+const startHint = document.getElementById("start-hint");
 
 export function init(h) {
   handlers = h;
@@ -13,12 +22,18 @@ export function init(h) {
     e.preventDefault();
     const input = document.getElementById("chat-input");
     const text = input.value.trim();
-    if (text) {
-      handlers.onChat(text);
-      input.value = "";
-    }
+    if (text) { handlers.onChat(text); input.value = ""; }
   });
   document.getElementById("leave-btn").addEventListener("click", handlers.onLeave);
+  document.getElementById("start-btn").addEventListener("click", handlers.onStart);
+  document.getElementById("addbot-btn").addEventListener("click", handlers.onAddBot);
+}
+
+export function setRole(r, name) {
+  role = r;
+  myName = name || myName;
+  hostControls.classList.toggle("hidden", role !== "host");
+  guestWait.classList.toggle("hidden", role === "host");
 }
 
 export function renderRooms(rooms) {
@@ -51,6 +66,12 @@ export function renderState(state) {
     if ((state.bots || []).includes(name)) li.classList.add("bot");
     if (name === state.host) li.classList.add("host");
     lobbyPlayers.appendChild(li);
+  }
+  if (role === "host") {
+    startBtn.disabled = !state.can_start;
+    startHint.textContent = state.can_start
+      ? ""
+      : `Need ${state.min_players} players (${state.player_count} now)`;
   }
 }
 

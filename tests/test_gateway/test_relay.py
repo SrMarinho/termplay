@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from termplay.engine.discovery import DiscoveredRoom
+from termplay.engine.protocol import ACTION_CREATE_ROOM, ACTION_JOIN_ROOM
 from termplay.gateway.server import WebGateway, _safe_json
 from termplay.gateway.ws import WebSocketClosed
 
@@ -73,6 +74,43 @@ def test_room_list_message_maps_discovered_rooms() -> None:
     ]
 
 
+def test_room_list_message_includes_server_info() -> None:
+    gateway = WebGateway(game_server=("10.0.0.1", 5000))
+    msg = gateway.room_list_message()
+    assert msg["server"] == {"ip": "10.0.0.1", "port": 5000}
+
+
+def test_build_connect_payload_join() -> None:
+    msg: dict[str, object] = {
+        "action": "join_room", "name": "Bob",
+        "ip": "10.0.0.5", "port": 4443, "code": "AB",
+    }
+    payload = WebGateway._build_connect_payload(msg)
+    assert payload["action"] == ACTION_JOIN_ROOM
+    assert payload["name"] == "Bob"
+    assert payload["code"] == "AB"
+
+
+def test_build_connect_payload_create() -> None:
+    msg: dict[str, object] = {"action": "create_room", "name": "Alice"}
+    payload = WebGateway._build_connect_payload(msg)
+    assert payload["action"] == ACTION_CREATE_ROOM
+    assert payload["name"] == "Alice"
+    assert "code" not in payload
+
+
+def test_resolve_server_create_uses_configured() -> None:
+    gateway = WebGateway(game_server=("192.168.1.1", 9999))
+    msg: dict[str, object] = {"action": "create_room", "name": "Alice"}
+    assert gateway._resolve_server(msg) == ("192.168.1.1", 9999)
+
+
+def test_resolve_server_join_uses_room_address() -> None:
+    gateway = WebGateway(game_server=("192.168.1.1", 9999))
+    msg: dict[str, object] = {"action": "join_room", "ip": "10.0.0.5", "port": 4443}
+    assert gateway._resolve_server(msg) == ("10.0.0.5", 4443)
+
+
 async def test_relay_forwards_both_directions() -> None:
     gateway = WebGateway()
     ws = _FakeWS(inbound=['{"action":"chat","text":"hi"}'])
@@ -81,7 +119,24 @@ async def test_relay_forwards_both_directions() -> None:
 
     await gateway._relay(ws, tcp_reader, tcp_writer)  # type: ignore[arg-type]
 
-    # tcp -> ws: server line delivered to the browser (newline stripped)
     assert '{"type":"game_render","content":"{}"}' in ws.sent
-    # ws -> tcp: browser action written as a JSON line
     assert tcp_writer.buffer == b'{"action":"chat","text":"hi"}\n'
+
+
+async def test_await_connect_accepts_create_room() -> None:
+    gateway = WebGateway()
+    ws = _FakeWS(inbound=['{"action":"create_room","name":"Alice"}'])
+    result = await gateway._await_connect(ws)
+    assert result is not None
+    assert result.get("action") == "create_room"
+
+
+async def test_await_connect_skips_unknown_then_accepts_join() -> None:
+    gateway = WebGateway()
+    ws = _FakeWS(inbound=[
+        '{"action":"unknown"}',
+        '{"action":"join_room","name":"Bob","ip":"10.0.0.1","port":4443}',
+    ])
+    result = await gateway._await_connect(ws)
+    assert result is not None
+    assert result.get("action") == "join_room"

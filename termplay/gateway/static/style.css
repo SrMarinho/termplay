@@ -34,6 +34,9 @@ button:hover:not(:disabled) { background: #4a5060; }
 button:disabled { opacity: .4; cursor: default; }
 .leave { background: #5a2a30; }
 
+/* host row */
+.host-row { display: flex; align-items: center; gap: .75rem; margin: .75rem 0; }
+
 /* room list */
 .room-list, .player-list, .chat-log { list-style: none; padding: 0; margin: .5rem 0; }
 .room {
@@ -44,6 +47,9 @@ button:disabled { opacity: .4; cursor: default; }
 .room-host { font-weight: 600; }
 .room-status.waiting { color: var(--G); }
 .room-status.playing { color: var(--Y); }
+
+/* host controls */
+.host-controls { display: flex; gap: .5rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
 
 /* lobby */
 .player-list li {

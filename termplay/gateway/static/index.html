@@ -13,6 +13,10 @@
   <section id="screen-rooms" class="screen active">
     <h2>Available rooms</h2>
     <label>Nickname <input id="nick" maxlength="16" placeholder="Player"></label>
+    <div class="host-row">
+      <button id="host-btn">+ Host a Room</button>
+      <span id="host-hint" class="muted"></span>
+    </div>
     <ul id="room-list" class="room-list"></ul>
     <p id="no-rooms" class="muted">Scanning the LAN for rooms…</p>
   </section>
@@ -21,7 +25,12 @@
   <section id="screen-lobby" class="screen">
     <h2>Lobby <span id="lobby-code" class="code"></span></h2>
     <ul id="lobby-players" class="player-list"></ul>
-    <p class="muted">Waiting for the host to start the game…</p>
+    <div id="host-controls" class="host-controls hidden">
+      <button id="start-btn">▶ Start Game</button>
+      <button id="addbot-btn">+ Add Bot</button>
+      <span id="start-hint" class="muted"></span>
+    </div>
+    <p id="guest-wait" class="muted">Waiting for the host to start the game…</p>
     <div class="chat">
       <ul id="chat-log" class="chat-log"></ul>
       <form id="chat-form"><input id="chat-input" placeholder="Message" autocomplete="off"><button>Send</button></form>

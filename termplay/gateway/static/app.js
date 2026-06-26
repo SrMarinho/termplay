@@ -39,6 +39,9 @@ function nickname() {
 
 const gateway = new Gateway(onMessage, onStatus);
 
+// Tracks the game server address received from room_list for create_room.
+let gameServer = { ip: "127.0.0.1", port: 4443 };
+
 // Browser → server action senders ------------------------------------------
 const sendInput = (text) => gateway.send({ action: "game_input", text });
 const actions = {
@@ -49,12 +52,13 @@ const actions = {
 };
 
 function joinRoom(room) {
-  gateway.send({
-    action: "join_room",
-    ip: room.ip,
-    port: room.port,
-    name: nickname(),
-  });
+  gateway.send({ action: "join_room", ip: room.ip, port: room.port, name: nickname() });
+}
+
+function hostRoom() {
+  gateway.send({ action: "create_room", name: nickname() });
+  document.getElementById("host-btn").disabled = true;
+  document.getElementById("host-hint").textContent = "Creating…";
 }
 
 // Wiring --------------------------------------------------------------------
@@ -62,9 +66,12 @@ lobby.init({
   onJoin: joinRoom,
   onChat: (text) => gateway.send({ action: "chat", text }),
   onLeave: () => location.reload(),
+  onStart: () => gateway.send({ action: "start_game" }),
+  onAddBot: () => gateway.send({ action: "add_bot" }),
 });
 uno.init(actions);
 
+document.getElementById("host-btn").addEventListener("click", hostRoom);
 document.getElementById("uno-quit").addEventListener("click", () => {
   actions.quit();
   location.reload();
@@ -78,11 +85,16 @@ function onStatus(status) {
 function onMessage(msg) {
   switch (msg.type) {
     case "room_list":
+      if (msg.server) gameServer = msg.server;
       lobby.renderRooms(msg.rooms);
       break;
     case "room_created":
+      show("lobby");
+      lobby.setRole("host", msg.you);
+      break;
     case "room_joined":
       show("lobby");
+      lobby.setRole("guest", msg.you);
       break;
     case "room_state":
       lobby.renderState(msg);
@@ -109,11 +121,7 @@ function onMessage(msg) {
 
 function handleRender(content) {
   let state;
-  try {
-    state = JSON.parse(content);
-  } catch {
-    return;
-  }
-  if (state.v !== "uno.state") return; // v1 supports Uno only
+  try { state = JSON.parse(content); } catch { return; }
+  if (state.v !== "uno.state") return;
   uno.render(state);
 }

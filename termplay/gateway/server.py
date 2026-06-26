@@ -20,7 +20,7 @@ import logging
 from pathlib import Path
 
 from termplay.engine.discovery import RoomDiscoverer
-from termplay.engine.protocol import ACTION_JOIN_ROOM, encode
+from termplay.engine.protocol import ACTION_CREATE_ROOM, ACTION_JOIN_ROOM, encode
 from termplay.gateway.ws import WebSocket, WebSocketClosed, read_http_head
 
 logger = logging.getLogger(__name__)
@@ -38,9 +38,15 @@ _CONTENT_TYPES = {
 class WebGateway:
     """HTTP + WebSocket gateway in front of the TCP game server."""
 
-    def __init__(self, bind: str = "0.0.0.0", http_port: int = 8080) -> None:
+    def __init__(
+        self,
+        bind: str = "0.0.0.0",
+        http_port: int = 8080,
+        game_server: tuple[str, int] = ("127.0.0.1", 4443),
+    ) -> None:
         self._bind = bind
         self._http_port = http_port
+        self._game_server = game_server
         self._discoverer = RoomDiscoverer()
         self._server: asyncio.Server | None = None
 
@@ -114,24 +120,18 @@ class WebGateway:
     # ── WebSocket session ──────────────────────────────────────────────────────
 
     async def _ws_session(self, ws: WebSocket) -> None:
-        """Feed the room list until the browser joins, then relay to TCP."""
+        """Feed room list until the browser connects, then relay to TCP."""
         feed = asyncio.create_task(self._room_list_feed(ws))
         tcp_writer: asyncio.StreamWriter | None = None
         try:
-            join = await self._await_join(ws)
-            if join is None:
+            msg = await self._await_connect(ws)
+            if msg is None:
                 return
             feed.cancel()
-            host = str(join.get("ip") or "127.0.0.1")
-            port = int(str(join.get("port") or 4443))
-            tcp_reader, tcp_writer = await asyncio.open_connection(host, port)
-            tcp_writer.write(
-                encode({
-                    "action": ACTION_JOIN_ROOM,
-                    "name": str(join.get("name") or "Player"),
-                    "code": str(join.get("code") or ""),
-                })
-            )
+            tcp_payload = self._build_connect_payload(msg)
+            tcp_host, tcp_port = self._resolve_server(msg)
+            tcp_reader, tcp_writer = await asyncio.open_connection(tcp_host, tcp_port)
+            tcp_writer.write(encode(tcp_payload))
             await tcp_writer.drain()
             await self._relay(ws, tcp_reader, tcp_writer)
         except WebSocketClosed:
@@ -145,15 +145,44 @@ class WebGateway:
                     tcp_writer.close()
             await ws.close()
 
-    async def _await_join(self, ws: WebSocket) -> dict[str, object] | None:
-        """Wait for the browser's first ``join_room`` message."""
+    async def _await_connect(self, ws: WebSocket) -> dict[str, object] | None:
+        """Wait for the browser's first ``create_room`` or ``join_room`` message."""
         while True:
             msg = _safe_json(await ws.recv_text())
-            if msg.get("action") == "join_room":
+            if msg.get("action") in ("create_room", "join_room"):
                 return msg
 
+    def _resolve_server(self, msg: dict[str, object]) -> tuple[str, int]:
+        """Return (host, port) of the game server for this connection.
+
+        For create_room, always use the configured game server.
+        For join_room, use ip/port from the discovered room.
+        """
+        if msg.get("action") == "create_room":
+            return self._game_server
+        return (
+            str(msg.get("ip") or self._game_server[0]),
+            int(str(msg.get("port") or self._game_server[1])),
+        )
+
+    @staticmethod
+    def _build_connect_payload(msg: dict[str, object]) -> dict[str, object]:
+        """Build the ACTION_CREATE_ROOM or ACTION_JOIN_ROOM TCP payload."""
+        name = str(msg.get("name") or "Player")
+        if msg.get("action") == "create_room":
+            return {"action": ACTION_CREATE_ROOM, "name": name}
+        return {
+            "action": ACTION_JOIN_ROOM,
+            "name": name,
+            "code": str(msg.get("code") or ""),
+        }
+
     def room_list_message(self) -> dict[str, object]:
-        """Build the synthetic ``room_list`` message from current discovery state."""
+        """Build the synthetic ``room_list`` message from current discovery state.
+
+        Includes ``server`` so the browser knows where to send ``create_room``.
+        """
+        gs_host, gs_port = self._game_server
         return {
             "type": "room_list",
             "rooms": [
@@ -168,6 +197,7 @@ class WebGateway:
                 }
                 for r in self._discoverer.rooms()
             ],
+            "server": {"ip": gs_host, "port": gs_port},
         }
 
     async def _room_list_feed(self, ws: WebSocket) -> None:
