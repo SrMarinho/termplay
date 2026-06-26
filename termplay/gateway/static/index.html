@@ -4,55 +4,97 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>termplay — Uno</title>
+  <link rel="icon" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header><h1>termplay</h1><span id="conn" class="conn">connecting…</span></header>
+  <header class="topbar">
+    <span class="logo"><span class="logo-term">term</span><span class="logo-play">play</span></span>
+    <span id="conn" class="conn">connecting…</span>
+  </header>
 
   <!-- Screen: room list -->
   <section id="screen-rooms" class="screen active">
-    <h2>Available rooms</h2>
-    <label>Nickname <input id="nick" maxlength="16" placeholder="Player"></label>
-    <div class="host-row">
-      <button id="host-btn">+ Host a Room</button>
-      <span id="host-hint" class="muted"></span>
+    <div class="wrap">
+      <div class="panel">
+        <h2 class="panel-title">YOUR NICK</h2>
+        <input id="nick" maxlength="16" placeholder="enter nickname" class="field">
+        <div class="host-row">
+          <button id="host-btn" class="btn primary">＋ Host a Room</button>
+          <span id="host-hint" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">OPEN ROOMS</h2>
+          <span id="room-count" class="muted"></span>
+        </div>
+        <ul id="room-list" class="room-list"></ul>
+        <p id="no-rooms" class="muted">Scanning the LAN for rooms…</p>
+      </div>
     </div>
-    <ul id="room-list" class="room-list"></ul>
-    <p id="no-rooms" class="muted">Scanning the LAN for rooms…</p>
   </section>
 
   <!-- Screen: lobby -->
   <section id="screen-lobby" class="screen">
-    <h2>Lobby <span id="lobby-code" class="code"></span></h2>
-    <ul id="lobby-players" class="player-list"></ul>
-    <div id="host-controls" class="host-controls hidden">
-      <button id="start-btn">▶ Start Game</button>
-      <button id="addbot-btn">+ Add Bot</button>
-      <span id="start-hint" class="muted"></span>
+    <div class="wrap">
+      <div class="lobby-grid">
+        <div class="panel">
+          <h2 class="panel-title">PLAYERS <span id="lobby-code" class="code"></span></h2>
+          <ul id="lobby-players" class="player-list"></ul>
+          <div id="host-controls" class="host-controls hidden">
+            <button id="start-btn" class="btn primary">▶ Start Game</button>
+            <button id="addbot-btn" class="btn secondary">＋ Add Bot</button>
+            <span id="start-hint" class="muted"></span>
+          </div>
+          <p id="guest-wait" class="muted">Waiting for the host to start…</p>
+          <button id="leave-btn" class="btn ghost">Leave</button>
+        </div>
+
+        <div class="panel chat-panel">
+          <h2 class="panel-title">CHAT</h2>
+          <ul id="chat-log" class="chat-log"></ul>
+          <form id="chat-form" class="chat-form">
+            <input id="chat-input" class="field" placeholder="message…" autocomplete="off">
+            <button class="btn secondary">Send</button>
+          </form>
+        </div>
+      </div>
     </div>
-    <p id="guest-wait" class="muted">Waiting for the host to start the game…</p>
-    <div class="chat">
-      <ul id="chat-log" class="chat-log"></ul>
-      <form id="chat-form"><input id="chat-input" placeholder="Message" autocomplete="off"><button>Send</button></form>
-    </div>
-    <button id="leave-btn" class="leave">Leave</button>
   </section>
 
   <!-- Screen: Uno game -->
-  <section id="screen-game" class="screen">
-    <div id="uno-table" class="uno-table"></div>
-    <div id="uno-message" class="uno-message"></div>
-    <div id="uno-color-picker" class="color-picker hidden">
-      <span>Choose a color:</span>
-      <button data-color="R" class="chip R">Red</button>
-      <button data-color="G" class="chip G">Green</button>
-      <button data-color="B" class="chip B">Blue</button>
-      <button data-color="Y" class="chip Y">Yellow</button>
+  <section id="screen-game" class="screen game">
+    <div class="game-head">
+      <span class="logo small"><span class="logo-term">term</span><span class="logo-play">play</span></span>
+      <span class="game-meta">direction <span id="uno-direction">↻</span></span>
+      <button id="uno-quit" class="btn ghost">leave</button>
     </div>
-    <div id="uno-hand" class="uno-hand"></div>
-    <div class="uno-actions">
-      <button id="uno-draw">Draw card</button>
-      <button id="uno-quit" class="leave">Quit</button>
+
+    <div id="uno-opponents" class="opponents"></div>
+
+    <div class="table">
+      <div id="uno-drawpile" class="drawpile" title="Draw card"></div>
+      <div class="discard-wrap">
+        <div id="uno-discard" class="discard"></div>
+        <span id="uno-colorbadge" class="color-badge"></span>
+      </div>
+    </div>
+
+    <div id="uno-message" class="uno-message"></div>
+
+    <div id="uno-color-picker" class="color-picker hidden">
+      <span class="muted">pick a color:</span>
+      <button data-color="R" class="chip R">R</button>
+      <button data-color="G" class="chip G">G</button>
+      <button data-color="B" class="chip B">B</button>
+      <button data-color="Y" class="chip Y">Y</button>
+    </div>
+
+    <div class="hand-zone">
+      <div id="uno-handinfo" class="hand-info"></div>
+      <div id="uno-hand" class="hand"></div>
     </div>
   </section>
 

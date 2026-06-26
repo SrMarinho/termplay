@@ -28,7 +28,7 @@ class Room:
 
     code: str
     host: RoomPlayer
-    max_players: int = 4
+    max_players: int = 8
     players: list[RoomPlayer] = field(default_factory=list)
     ready: asyncio.Event = field(default_factory=asyncio.Event)
     game_complete: asyncio.Event = field(default_factory=asyncio.Event)
@@ -61,7 +61,7 @@ class RoomManager:
     _rooms: ClassVar[dict[str, Room]] = {}
 
     @classmethod
-    def create(cls, host: RoomPlayer, max_players: int = 4) -> Room:
+    def create(cls, host: RoomPlayer, max_players: int = 8) -> Room:
         code = cls._gen_code()
         room = Room(code=code, host=host, max_players=max_players)
         room.players.append(host)

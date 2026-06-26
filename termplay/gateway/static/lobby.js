@@ -8,6 +8,7 @@ let myName = "";
 
 const roomList = document.getElementById("room-list");
 const noRooms = document.getElementById("no-rooms");
+const roomCount = document.getElementById("room-count");
 const lobbyCode = document.getElementById("lobby-code");
 const lobbyPlayers = document.getElementById("lobby-players");
 const chatLog = document.getElementById("chat-log");
@@ -39,32 +40,40 @@ export function setRole(r, name) {
 export function renderRooms(rooms) {
   roomList.replaceChildren();
   noRooms.style.display = rooms.length ? "none" : "block";
+  roomCount.textContent = rooms.length ? `${rooms.length} total` : "";
   for (const room of rooms) {
     const li = document.createElement("li");
     li.className = "room";
     const joinable = room.status === "waiting" && room.players < room.max_players;
-    li.innerHTML =
-      `<span class="room-host">${esc(room.host)}</span>` +
-      `<span class="room-game">${esc(room.game)}</span>` +
-      `<span class="room-count">${room.players}/${room.max_players}</span>` +
-      `<span class="room-status ${room.status}">${esc(room.status)}</span>`;
+    const info = document.createElement("div");
+    info.className = "room-info";
+    info.innerHTML =
+      `<div class="room-host">${esc(room.host)} <span class="badge game">${esc(room.game)}</span></div>` +
+      `<div class="room-sub muted">${room.players}/${room.max_players} players` +
+      `${room.status === "playing" ? " · in progress" : ""}</div>`;
     const btn = document.createElement("button");
-    btn.textContent = joinable ? "Join" : "—";
+    btn.className = "btn secondary";
+    btn.textContent = room.status === "playing" ? "in game" : joinable ? "Join" : "full";
     btn.disabled = !joinable;
     btn.addEventListener("click", () => handlers.onJoin(room));
-    li.appendChild(btn);
+    li.append(info, btn);
     roomList.appendChild(li);
   }
 }
 
 export function renderState(state) {
-  lobbyCode.textContent = state.code ? `#${state.code}` : "";
+  lobbyCode.textContent = state.code ? `· room ${state.code}` : "";
   lobbyPlayers.replaceChildren();
+  const bots = new Set(state.bots || []);
   for (const name of state.players || []) {
     const li = document.createElement("li");
-    li.textContent = name;
-    if ((state.bots || []).includes(name)) li.classList.add("bot");
-    if (name === state.host) li.classList.add("host");
+    const isBot = bots.has(name);
+    li.innerHTML =
+      `<span class="dot" style="background:${isBot ? "#9ca0ac" : "#2a9d8f"}"></span>` +
+      `<span class="pl-name">${esc(name)}</span>` +
+      (name === myName ? `<span class="badge you">you</span>` : "") +
+      (name === state.host ? `<span class="badge host">host</span>` : "") +
+      (isBot ? `<span class="badge bot">bot</span>` : "");
     lobbyPlayers.appendChild(li);
   }
   if (role === "host") {
