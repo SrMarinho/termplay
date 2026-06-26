@@ -40,7 +40,10 @@ class ProtocolServerAdapter(ITransportAdapter):
         await self._writer.drain()
 
     async def recv_control(self) -> dict[str, Any] | None:
-        line = await self._reader.readline()
+        try:
+            line = await self._reader.readline()
+        except OSError:
+            return None
         if not line:
             return None
         try:

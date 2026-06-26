@@ -39,7 +39,30 @@ def _parse_server(addr: str) -> tuple[str, int]:
     return (host or "127.0.0.1", int(port_str or "4443"))
 
 
+def _make_exception_handler(
+    default: object,
+) -> object:
+    """Suppress WinError 10054 ConnectionResetError from ProactorEventLoop callbacks.
+
+    On Windows, closing a WebSocket causes asyncio to call sock.shutdown(SHUT_RDWR)
+    on an already-reset socket, raising ConnectionResetError internally. This is
+    harmless noise — the connection is already gone.
+    """
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
+    def handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:  # type: ignore[type-arg]
+        exc = context.get("exception")
+        if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+            return  # normal peer disconnect on Windows — suppress
+        loop.default_exception_handler(context)  # type: ignore[attr-defined]
+
+    return handler
+
+
 async def _run(bind: str, http_port: int, game_server: tuple[str, int]) -> None:
+    loop = asyncio.get_running_loop()
+    loop.set_exception_handler(_make_exception_handler(loop.default_exception_handler))  # type: ignore[arg-type]
     gateway = WebGateway(bind, http_port, game_server)
     await gateway.start()
     print(f"termplay web gateway on http://{bind}:{http_port}")

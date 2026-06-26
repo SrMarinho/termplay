@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -21,6 +22,7 @@ from termplay.games.uno.display import render_log_view
 from termplay.games.uno.state import COLORS, Card, UnoState
 
 UNO_STATE_TAG = "uno.state"
+TURN_TIMEOUT = 30  # seconds per turn
 
 
 def _face(card: Card) -> str:
@@ -54,6 +56,7 @@ class UnoController:
         self._players = players
         self._state = UnoState.new(len(self._players))
         self._message = ""
+        self._turn_deadline: float = 0.0
         self._log = GameLogger("uno")
         self._log.event(
             "match_start",
@@ -74,6 +77,7 @@ class UnoController:
             if not player.active:
                 self._state.advance()
                 continue
+            self._turn_deadline = time.time() + TURN_TIMEOUT
             await self._broadcast(active_idx=idx)
             self._log.event(
                 "turn",
@@ -183,8 +187,17 @@ class UnoController:
     async def _get_move(self, player: _Player, idx: int) -> int | str | None:
         hand = self._state.hands[idx]
         while True:
+            remaining = self._turn_deadline - time.time()
+            if remaining <= 0:
+                self._message = f"{player.name} demorou — comprou"
+                return "draw"
             try:
-                raw = (await player.transport.read_line()).strip().lower()
+                raw = (
+                    await asyncio.wait_for(player.transport.read_line(), timeout=remaining)
+                ).strip().lower()
+            except TimeoutError:
+                self._message = f"{player.name} demorou — comprou"
+                return "draw"
             except ConnectionError:
                 return None
             if raw in ("q", "quit", "sair"):
@@ -198,8 +211,15 @@ class UnoController:
 
     async def _choose_color(self, player: _Player) -> str:
         while True:
+            remaining = self._turn_deadline - time.time()
+            if remaining <= 0:
+                return random.choice(COLORS)
             try:
-                raw = (await player.transport.read_line()).strip().upper()
+                raw = (
+                    await asyncio.wait_for(player.transport.read_line(), timeout=remaining)
+                ).strip().upper()
+            except TimeoutError:
+                return random.choice(COLORS)
             except ConnectionError:
                 return COLORS[0]
             if raw in COLORS:
@@ -231,6 +251,7 @@ class UnoController:
             "playable": [i for i, c in enumerate(st.hands[idx]) if st.playable(c)],
             "your_turn": your_turn,
             "need_color": need_color,
+            "deadline": self._turn_deadline if your_turn else 0,
             "message": self._message,
             "winner": "",
         }

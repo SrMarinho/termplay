@@ -114,7 +114,22 @@ body {
 .opp-name { color: var(--ink); font-weight: 700; }
 .opp-count { margin-left: 6px; }
 
-.table { flex: 1; display: flex; justify-content: center; align-items: center; gap: 36px; padding: 12px; }
+.table { flex: 1; display: flex; justify-content: center; align-items: center; gap: 28px; padding: 12px; }
+
+.direction-indicator {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 2px solid var(--gold); color: var(--gold);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 900; line-height: 1;
+  background: rgba(233,196,106,.08);
+  box-shadow: 0 0 0 4px rgba(233,196,106,.12);
+  transition: transform .4s cubic-bezier(.34,1.56,.64,1), color .2s;
+  user-select: none;
+}
+.direction-indicator.reverse { color: var(--blue); border-color: var(--blue);
+  background: rgba(69,123,157,.08); box-shadow: 0 0 0 4px rgba(69,123,157,.12); }
+.direction-indicator.spin { animation: dir-spin .4s cubic-bezier(.34,1.56,.64,1); }
+@keyframes dir-spin { 0% { transform: scale(1.4) rotate(-30deg); } 100% { transform: scale(1) rotate(0deg); } }
 .drawpile .card-back.disabled { opacity: .5; cursor: not-allowed; }
 .discard-wrap { position: relative; }
 .color-badge {
@@ -127,6 +142,24 @@ body {
 .uno-message.active { color: var(--gold); font-weight: 700; }
 .uno-message.flash { animation: flashpop .3s ease; }
 @keyframes flashpop { 0% { transform: scale(.9); opacity: .5; } 100% { transform: scale(1); opacity: 1; } }
+
+.turn-timer {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 24px 6px; max-width: 560px; margin: 0 auto;
+}
+.timer-bar-wrap {
+  flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.timer-bar {
+  height: 100%; width: 100%; border-radius: 3px;
+  background: var(--G); transition: background .5s;
+  transform-origin: left; will-change: transform;
+}
+.timer-bar.urgent { background: var(--R); }
+.timer-label {
+  font-size: 12px; font-weight: 700; color: var(--muted); min-width: 22px; text-align: right;
+}
+.timer-label.urgent { color: var(--R); }
 
 .color-picker {
   display: flex; gap: 12px; align-items: center; justify-content: center;
@@ -202,11 +235,6 @@ body {
   0% { transform: translateY(-34px) scale(1.3) rotate(-8deg); opacity: .2; }
   60% { transform: translateY(0) scale(1.05) rotate(2deg); opacity: 1; }
   100% { transform: translateY(0) scale(1) rotate(0); }
-}
-.card.playing { animation: playfly .3s ease-in forwards; pointer-events: none; }
-@keyframes playfly {
-  0% { transform: translateY(-12px); opacity: 1; }
-  100% { transform: translateY(-160px) scale(.7); opacity: 0; }
 }
 
 /* game over overlay */

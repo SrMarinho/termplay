@@ -20,6 +20,12 @@
         <h2 class="panel-title">YOUR NICK</h2>
         <input id="nick" maxlength="16" placeholder="enter nickname" class="field">
         <div class="host-row">
+          <select id="host-game" class="field" style="width:auto;padding:10px 12px">
+            <option value="uno">Uno</option>
+            <option value="velha">Jogo da Velha</option>
+            <option value="hangman">Hangman</option>
+            <option value="blackjack">Blackjack</option>
+          </select>
           <button id="host-btn" class="btn primary">＋ Host a Room</button>
           <span id="host-hint" class="muted"></span>
         </div>
@@ -68,7 +74,7 @@
   <section id="screen-game" class="screen game">
     <div class="game-head">
       <span class="logo small"><span class="logo-term">term</span><span class="logo-play">play</span></span>
-      <span class="game-meta">direction <span id="uno-direction">↻</span></span>
+      <span class="game-meta"></span>
       <button id="uno-quit" class="btn ghost">leave</button>
     </div>
 
@@ -76,6 +82,7 @@
 
     <div class="table">
       <div id="uno-drawpile" class="drawpile" title="Draw card"></div>
+      <div id="uno-direction" class="direction-indicator">↻</div>
       <div class="discard-wrap">
         <div id="uno-discard" class="discard"></div>
         <span id="uno-colorbadge" class="color-badge"></span>
@@ -83,6 +90,10 @@
     </div>
 
     <div id="uno-message" class="uno-message"></div>
+    <div id="uno-timer" class="turn-timer hidden">
+      <div class="timer-bar-wrap"><div id="uno-timer-bar" class="timer-bar"></div></div>
+      <span id="uno-timer-label" class="timer-label">30</span>
+    </div>
 
     <div id="uno-color-picker" class="color-picker hidden">
       <span class="muted">pick a color:</span>

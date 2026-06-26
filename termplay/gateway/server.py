@@ -185,7 +185,11 @@ class WebGateway:
         """Build the ACTION_CREATE_ROOM or ACTION_JOIN_ROOM TCP payload."""
         name = str(msg.get("name") or "Player")
         if msg.get("action") == "create_room":
-            return {"action": ACTION_CREATE_ROOM, "name": name}
+            return {
+                "action": ACTION_CREATE_ROOM,
+                "name": name,
+                "game": str(msg.get("game") or "uno"),
+            }
         return {
             "action": ACTION_JOIN_ROOM,
             "name": name,

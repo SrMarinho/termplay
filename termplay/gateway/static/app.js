@@ -64,7 +64,8 @@ function joinRoom(room) {
 }
 
 function hostRoom() {
-  gateway.send({ action: "create_room", name: nickname() });
+  const game = document.getElementById("host-game")?.value || "uno";
+  gateway.send({ action: "create_room", name: nickname(), game });
   hostBtn.disabled = true;
   hostHint.textContent = "Creating…";
 }
