@@ -38,6 +38,17 @@ termplay/
 │   factory in MultiplayerRegistry. Controllers render per-player pretty
 │   (Rich/box-art) or disguised (log lines) based on each player's stealth flag.
 │
+├── gateway/                ← browser frontend bridge (imports engine/ only)
+│   ├── ws.py               minimal RFC 6455 WebSocket (stdlib, no deps)
+│   ├── server.py           WebGateway: HTTP static + WS↔TCP relay + room_list feed
+│   ├── __main__.py         CLI (termplay-web), --http-port / --bind
+│   └── static/             vanilla web client (no build step)
+│       ├── index.html      room list → lobby → Uno game screens
+│       ├── app.js          WebSocket owner + message router
+│       ├── lobby.js        room list + lobby (players, chat)
+│       ├── uno.js          renders uno.state as native HTML cards
+│       └── style.css
+│
 └── frontends/
     ├── textual_app.py       TermplayTUIApp (App root, server lifecycle)
     ├── net.py               ServerConnection (TCP client, recv loop)
@@ -63,6 +74,7 @@ domain/        ←  stdlib only
 engine/        ←  domain/ + stdlib + asyncio   (zero frontend/game imports)
 games/*/       ←  engine/interfaces + domain/  (zero frontend imports)
 frontends/     ←  engine/ + games/ + textual + config/
+gateway/       ←  engine/ + stdlib            (zero frontend/game imports)
 ```
 
 **Inversion of control**: `MultiplayerGameController` receives a list of
@@ -249,3 +261,35 @@ MpGameScreen (client): self._stealth = get_stealth()
 
 Because disguised output emits no box-drawing chars, `MpGameScreen` never calls
 `RichLog.clear()` — lines append like a real log feed instead of redrawing.
+
+---
+
+## Web Gateway (browser frontend)
+
+A browser cannot speak raw TCP or UDP, so `gateway/` runs a separate process that
+bridges the two worlds. It is a **thin relay** — the game server and TUI are
+untouched, and the gateway imports only from `engine/`.
+
+```
+Browser (HTML/CSS/JS)                       WebGateway (gateway/server.py)
+──────────────────────                      ──────────────────────────────
+WebSocket /ws  ──────────────────────────▶  per-connection asyncio handler
+  {action:"join_room", ip, port, name}        RoomDiscoverer (shared, UDP rx)
+  {action:"chat"/"game_input"/"leave"}        ├─ feed: {type:"room_list", rooms}
+                                              │     every 1s until join
+  ◀── {type:"room_list", rooms:[...]}         └─ on join: open TCP to ip:port,
+  ◀── room_state / chat / game_start                send ACTION_JOIN_ROOM, then
+  ◀── game_render {content:"<uno.state>"}           relay 1:1 line ↔ frame
+  ◀── game_over / error
+                                              TCP JSON-line ↔ TermPlayServer
+```
+
+The browser renders `game_render.content` (a `uno.state` JSON string) as native
+HTML (cards, hand, table) — no ANSI, no terminal emulator. v1 supports Uno only;
+other `v` tags are ignored. Web users are guests (join only); a TUI or
+`termplay-server --game uno` host starts the match.
+
+**Layering:** `gateway/ws.py` is a dependency-free RFC 6455 implementation
+(handshake + masked/unmasked text frames). `gateway/server.py` reuses
+`engine/protocol.encode` and `engine/discovery.RoomDiscoverer`. No third-party
+package is added.

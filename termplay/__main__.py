@@ -12,6 +12,9 @@ import sys
 
 # Importar plugins para registrá-los automaticamente (via @GameRegistry.register)
 import termplay.games.blackjack.plugin  # noqa: F401
+import termplay.games.hangman.plugin  # noqa: F401
+import termplay.games.tictactoe.plugin  # noqa: F401
+import termplay.games.uno.plugin  # noqa: F401
 from termplay.engine.registry import GameRegistry
 from termplay.engine.server import TermPlayServer
 
@@ -31,6 +34,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=4443,
         help="Porta do servidor (padrão: 4443)",
+    )
+    parser.add_argument(
+        "--game",
+        default="blackjack",
+        help="Jogo hospedado pela sala (padrão: blackjack)",
     )
     parser.add_argument(
         "--list-games",
@@ -55,9 +63,9 @@ def setup_logging(level: str) -> None:
     )
 
 
-async def run_server(host: str, port: int) -> None:
+async def run_server(host: str, port: int, game: str = "blackjack") -> None:
     """Executa o servidor principal."""
-    server = TermPlayServer(host, port)
+    server = TermPlayServer(host, port, game)
     await server.start()
 
     ip = "127.0.0.1" if host == "0.0.0.0" else host
@@ -95,7 +103,7 @@ def main() -> None:
 
     # Caso contrário, iniciar o servidor
     try:
-        asyncio.run(run_server(args.host, args.port))
+        asyncio.run(run_server(args.host, args.port, args.game))
     except KeyboardInterrupt:
         print("\nServidor interrompido.")
         sys.exit(0)

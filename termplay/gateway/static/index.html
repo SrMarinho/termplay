@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>termplay — Uno</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><h1>termplay</h1><span id="conn" class="conn">connecting…</span></header>
+
+  <!-- Screen: room list -->
+  <section id="screen-rooms" class="screen active">
+    <h2>Available rooms</h2>
+    <label>Nickname <input id="nick" maxlength="16" placeholder="Player"></label>
+    <ul id="room-list" class="room-list"></ul>
+    <p id="no-rooms" class="muted">Scanning the LAN for rooms…</p>
+  </section>
+
+  <!-- Screen: lobby -->
+  <section id="screen-lobby" class="screen">
+    <h2>Lobby <span id="lobby-code" class="code"></span></h2>
+    <ul id="lobby-players" class="player-list"></ul>
+    <p class="muted">Waiting for the host to start the game…</p>
+    <div class="chat">
+      <ul id="chat-log" class="chat-log"></ul>
+      <form id="chat-form"><input id="chat-input" placeholder="Message" autocomplete="off"><button>Send</button></form>
+    </div>
+    <button id="leave-btn" class="leave">Leave</button>
+  </section>
+
+  <!-- Screen: Uno game -->
+  <section id="screen-game" class="screen">
+    <div id="uno-table" class="uno-table"></div>
+    <div id="uno-message" class="uno-message"></div>
+    <div id="uno-color-picker" class="color-picker hidden">
+      <span>Choose a color:</span>
+      <button data-color="R" class="chip R">Red</button>
+      <button data-color="G" class="chip G">Green</button>
+      <button data-color="B" class="chip B">Blue</button>
+      <button data-color="Y" class="chip Y">Yellow</button>
+    </div>
+    <div id="uno-hand" class="uno-hand"></div>
+    <div class="uno-actions">
+      <button id="uno-draw">Draw card</button>
+      <button id="uno-quit" class="leave">Quit</button>
+    </div>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
