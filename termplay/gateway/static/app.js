@@ -15,11 +15,11 @@ function show(name) {
 }
 
 class Gateway {
-  constructor(onMessage, onStatus) {
+  constructor(onMessage, onStatus, onClose) {
     const proto = location.protocol === "https:" ? "wss" : "ws";
     this.ws = new WebSocket(`${proto}://${location.host}/ws`);
     this.ws.onopen = () => onStatus("connected");
-    this.ws.onclose = () => onStatus("disconnected");
+    this.ws.onclose = () => { onStatus("disconnected"); onClose(); };
     this.ws.onerror = () => onStatus("error");
     this.ws.onmessage = (ev) => onMessage(JSON.parse(ev.data));
   }
@@ -37,7 +37,15 @@ function nickname() {
   return (nickInput.value || "Player").trim().slice(0, 16) || "Player";
 }
 
-const gateway = new Gateway(onMessage, onStatus);
+const hostBtn = document.getElementById("host-btn");
+const hostHint = document.getElementById("host-hint");
+
+function resetHostButton() {
+  hostBtn.disabled = false;
+  hostHint.textContent = "";
+}
+
+const gateway = new Gateway(onMessage, onStatus, resetHostButton);
 
 // Tracks the game server address received from room_list for create_room.
 let gameServer = { ip: "127.0.0.1", port: 4443 };
@@ -57,8 +65,8 @@ function joinRoom(room) {
 
 function hostRoom() {
   gateway.send({ action: "create_room", name: nickname() });
-  document.getElementById("host-btn").disabled = true;
-  document.getElementById("host-hint").textContent = "Creating…";
+  hostBtn.disabled = true;
+  hostHint.textContent = "Creating…";
 }
 
 // Wiring --------------------------------------------------------------------

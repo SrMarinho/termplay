@@ -128,9 +128,24 @@ class WebGateway:
             if msg is None:
                 return
             feed.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await feed
             tcp_payload = self._build_connect_payload(msg)
             tcp_host, tcp_port = self._resolve_server(msg)
-            tcp_reader, tcp_writer = await asyncio.open_connection(tcp_host, tcp_port)
+            try:
+                tcp_reader, tcp_writer = await asyncio.open_connection(
+                    tcp_host, tcp_port
+                )
+            except OSError:
+                await ws.send_text(json.dumps({
+                    "type": "error",
+                    "message": (
+                        f"Cannot connect to game server at {tcp_host}:{tcp_port}. "
+                        "Make sure 'termplay-server --game uno' is running."
+                    ),
+                    "fatal": True,
+                }))
+                return
             tcp_writer.write(encode(tcp_payload))
             await tcp_writer.drain()
             await self._relay(ws, tcp_reader, tcp_writer)
