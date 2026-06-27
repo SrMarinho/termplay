@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>termplay — Uno</title>
-  <link rel="icon" href="favicon.svg">
-  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
   <header class="topbar">
@@ -19,13 +19,32 @@
       <div class="panel">
         <h2 class="panel-title">YOUR NICK</h2>
         <input id="nick" maxlength="16" placeholder="enter nickname" class="field">
-        <div class="host-row">
-          <select id="host-game" class="field" style="width:auto;padding:10px 12px">
-            <option value="uno">Uno</option>
-            <option value="velha">Jogo da Velha</option>
-            <option value="hangman">Hangman</option>
-            <option value="blackjack">Blackjack</option>
-          </select>
+
+        <h2 class="panel-title" style="margin-top:18px">PICK A GAME</h2>
+        <div id="game-grid" class="game-grid">
+          <button class="game-tile selected" data-game="uno">
+            <span class="gt-icon">🃏</span>
+            <span class="gt-name">Uno</span>
+            <span class="gt-sub">combine cor/valor</span>
+          </button>
+          <button class="game-tile" data-game="velha">
+            <span class="gt-icon">⭕</span>
+            <span class="gt-name">Jogo da Velha</span>
+            <span class="gt-sub">3 em linha</span>
+          </button>
+          <button class="game-tile" data-game="hangman">
+            <span class="gt-icon">🔤</span>
+            <span class="gt-name">Forca</span>
+            <span class="gt-sub">adivinhe a palavra</span>
+          </button>
+          <button class="game-tile" data-game="blackjack">
+            <span class="gt-icon">🂡</span>
+            <span class="gt-name">Blackjack</span>
+            <span class="gt-sub">chegue em 21</span>
+          </button>
+        </div>
+
+        <div class="host-actions">
           <button id="host-btn" class="btn primary">＋ Host a Room</button>
           <span id="host-hint" class="muted"></span>
         </div>
@@ -46,16 +65,19 @@
   <section id="screen-lobby" class="screen">
     <div class="wrap">
       <div class="lobby-grid">
-        <div class="panel">
+        <div class="panel players-panel">
           <h2 class="panel-title">PLAYERS <span id="lobby-code" class="code"></span></h2>
           <ul id="lobby-players" class="player-list"></ul>
-          <div id="host-controls" class="host-controls hidden">
-            <button id="start-btn" class="btn primary">▶ Start Game</button>
-            <button id="addbot-btn" class="btn secondary">＋ Add Bot</button>
-            <span id="start-hint" class="muted"></span>
+          <p id="start-hint" class="muted lobby-hint"></p>
+          <div class="lobby-footer">
+            <div id="host-controls" class="host-controls hidden">
+              <button id="start-btn" class="btn primary">▶ Start Game</button>
+              <button id="addbot-btn" class="btn secondary">＋ Add Bot</button>
+              <button id="rules-btn" class="btn ghost hidden">⚙ Regras</button>
+            </div>
+            <p id="guest-wait" class="muted">Waiting for the host to start…</p>
+            <button id="leave-btn" class="btn ghost">Leave</button>
           </div>
-          <p id="guest-wait" class="muted">Waiting for the host to start…</p>
-          <button id="leave-btn" class="btn ghost">Leave</button>
         </div>
 
         <div class="panel chat-panel">
@@ -108,6 +130,24 @@
       <div id="uno-hand" class="hand"></div>
     </div>
   </section>
+
+  <!-- Rules modal (host configures Uno variants in the lobby) -->
+  <div id="rules-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <h3 class="modal-title">⚙ Regras do Uno</h3>
+      <p class="muted">Escolha uma predefinição ou monte as suas regras.</p>
+      <div id="preset-chips" class="preset-chips">
+        <button class="preset-chip" data-preset="standard">Standard</button>
+        <button class="preset-chip" data-preset="br">🇧🇷 Brazilian</button>
+        <button class="preset-chip custom" data-preset="custom" disabled>Custom</button>
+      </div>
+      <ul id="rule-toggles" class="rule-toggles"></ul>
+      <div class="modal-actions">
+        <button id="rules-cancel" class="btn ghost">Cancelar</button>
+        <button id="rules-save" class="btn primary">Salvar</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

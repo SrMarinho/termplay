@@ -35,7 +35,7 @@ where = ["."]
 include = ["termplay*"]
 
 [tool.setuptools.package-data]
-"termplay.gateway" = ["static/*"]
+"termplay.gateway" = ["static/**/*"]
 
 [tool.mypy]
 strict = true
