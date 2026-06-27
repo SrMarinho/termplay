@@ -47,6 +47,7 @@ def _make_controller(
     transports: list[ITransportAdapter],
     names: list[str] | None,
     stealth_flags: list[bool] | None,
+    rules: str = "standard",
 ) -> TicTacToeController:
     all_transports = list(transports)
     all_names = list(names) if names else [f"Player {i+1}" for i in range(len(transports))]

@@ -55,6 +55,7 @@ class TermPlayServer:
         self._broadcaster = RoomBroadcaster()
         self._broadcast_task: asyncio.Task[None] | None = None
         self._clients: set[asyncio.Task[None]] = set()
+        self._runners: dict[str, asyncio.Task[None]] = {}
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(
@@ -84,6 +85,7 @@ class TermPlayServer:
                     str(first.get("name") or "Host"),
                     stealth,
                     str(first.get("game") or self._game_name),
+                    str(first.get("rules") or "standard"),
                 )
             elif action == ACTION_JOIN_ROOM:
                 await self._guest_flow(
@@ -112,9 +114,10 @@ class TermPlayServer:
         name: str,
         stealth: bool = False,
         game: str = "",
+        rules: str = "standard",
     ) -> None:
         player = RoomPlayer(name=name, transport=adapter, stealth=stealth)
-        room = RoomManager.create(player, game=game or self._game_name)
+        room = RoomManager.create(player, game=game or self._game_name, rules=rules)
         self._broadcaster.update(
             host=name,
             game=room.game,
@@ -123,39 +126,13 @@ class TermPlayServer:
             status="waiting",
             port=self.actual_port,
         )
+        # The game lifecycle runs in a room-scoped task, independent of any single
+        # connection, so the host may leave (and leadership migrate) without
+        # tearing down the room.
+        self._runners[room.code] = asyncio.create_task(self._room_runner(room))
         await adapter.send_control(type=TYPE_ROOM_CREATED, code=room.code, you=name)
         await self._broadcast_state(room)
-        try:
-            while True:
-                msg = await adapter.recv_control()
-                if msg is None:
-                    return
-                action = msg.get("action")
-                if action == ACTION_START_GAME:
-                    if room.player_count >= MIN_PLAYERS:
-                        break
-                    await adapter.send_control(
-                        type=TYPE_ERROR,
-                        message=f"Mínimo {MIN_PLAYERS} jogadores para iniciar.",
-                    )
-                elif action == ACTION_CHAT:
-                    await self._broadcast_chat(room, name, str(msg.get("text") or ""))
-                elif action == ACTION_ADD_BOT:
-                    await self._add_bot(room)
-                elif action == ACTION_KICK:
-                    await self._kick_player(room, str(msg.get("target") or ""))
-
-            room.ready.set()
-            self._broadcaster.update(status="playing")
-            await self._broadcast(room, type=TYPE_GAME_START, game=self._game_name)
-            relay = asyncio.create_task(self._relay(adapter, room, name))
-            try:
-                await self._run_controller(room)
-            finally:
-                await relay
-        finally:
-            RoomManager.remove(room.code)
-            self._broadcaster.update(players=0, status="waiting")
+        await self._serve_player(adapter, room, player)
 
     # ── Guest ────────────────────────────────────────────────────────────────
 
@@ -180,10 +157,11 @@ class TermPlayServer:
             )
             return
 
-        # Evict stale ghost with the same name (reconnect race condition).
+        # Evict stale ghost with the same name (reconnect / reload race).
         stale = next(
             (p for p in room.players if p.name == name and not p.is_bot), None
         )
+        stale_was_host = stale is not None and stale is room.host
         if stale is not None:
             room.remove_player(stale)
             with contextlib.suppress(Exception):
@@ -191,28 +169,117 @@ class TermPlayServer:
 
         player = RoomPlayer(name=name, transport=adapter, stealth=stealth)
         room.add_player(player)
+        # A reconnecting host keeps leadership across a reload.
+        if stale_was_host:
+            room.host = player
         await adapter.send_control(type=TYPE_ROOM_JOINED, code=room.code, you=name)
         await self._broadcast_state(room)
-        try:
-            while not room.ready.is_set():
-                try:
-                    msg = await asyncio.wait_for(adapter.recv_control(), timeout=0.3)
-                except TimeoutError:
-                    continue
-                if msg is None:
-                    return
-                action = msg.get("action")
-                if action == ACTION_LEAVE:
-                    return
-                if action == ACTION_CHAT:
-                    await self._broadcast_chat(room, name, str(msg.get("text") or ""))
+        await self._serve_player(adapter, room, player)
 
-            relay = asyncio.create_task(self._relay(adapter, room, name))
-            await room.game_complete.wait()
-            await relay
+    # ── Unified per-player loop ──────────────────────────────────────────────
+
+    async def _serve_player(
+        self, adapter: ProtocolServerAdapter, room: Room, player: RoomPlayer
+    ) -> None:
+        """Lobby + game loop shared by host and guests. Host-only actions are
+        gated on ``player is room.host`` so leadership can migrate freely. After a
+        match the loop returns to the lobby so players can rematch."""
+        try:
+            while True:
+                # Lobby phase: wait for the host to start (or the player to leave).
+                while not room.ready.is_set():
+                    try:
+                        msg = await asyncio.wait_for(
+                            adapter.recv_control(), timeout=0.3
+                        )
+                    except TimeoutError:
+                        continue
+                    if msg is None:
+                        return
+                    action = msg.get("action")
+                    if action == ACTION_LEAVE:
+                        return
+                    if action == ACTION_CHAT:
+                        await self._broadcast_chat(
+                            room, player.name, str(msg.get("text") or "")
+                        )
+                    elif player is room.host:
+                        await self._handle_host_action(adapter, room, action, msg)
+
+                # Game phase: relay input until the match completes.
+                relay = asyncio.create_task(self._relay(adapter, room, player.name))
+                await room.game_complete.wait()
+                await relay
+                # Wait for the runner to return the room to the lobby, then loop
+                # back so the player can play another round.
+                while room.ready.is_set():
+                    await asyncio.sleep(0.05)
         finally:
-            room.remove_player(player)
-            await self._broadcast_state(room)
+            await self._handle_departure(room, player)
+
+    async def _handle_host_action(
+        self,
+        adapter: ProtocolServerAdapter,
+        room: Room,
+        action: object,
+        msg: dict[str, object],
+    ) -> None:
+        if action == ACTION_START_GAME:
+            if msg.get("rules") is not None:
+                room.rules = msg.get("rules")
+            if room.player_count >= MIN_PLAYERS:
+                room.ready.set()
+            else:
+                await adapter.send_control(
+                    type=TYPE_ERROR,
+                    message=f"Mínimo {MIN_PLAYERS} jogadores para iniciar.",
+                )
+        elif action == ACTION_ADD_BOT:
+            await self._add_bot(room)
+        elif action == ACTION_KICK:
+            await self._kick_player(room, str(msg.get("target") or ""))
+
+    async def _room_runner(self, room: Room) -> None:
+        """Owns the room's game lifecycle, decoupled from any connection. Loops so
+        the same room can host repeated matches (rematches) from its lobby."""
+        try:
+            while True:
+                await room.ready.wait()
+                self._broadcaster.update(status="playing")
+                await self._broadcast(room, type=TYPE_GAME_START, game=room.game)
+                await self._run_controller(room)  # sets game_complete + GAME_OVER
+                # Back to the lobby for a rematch. Clear game_complete first (no
+                # waiters), then ready last so _serve_player loops cleanly.
+                room.game_complete.clear()
+                self._broadcaster.update(status="waiting")
+                await self._broadcast_state(room)
+                room.ready.clear()
+                if not any(not p.is_bot for p in room.players):
+                    break  # no humans left to rematch
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._runners.pop(room.code, None)
+            RoomManager.remove(room.code)
+            self._broadcaster.update(players=0, status="waiting")
+
+    async def _handle_departure(self, room: Room, player: RoomPlayer) -> None:
+        """Remove a player; migrate host if they led; drop the room if empty."""
+        was_host = player is room.host
+        room.remove_player(player)
+        humans = [p for p in room.players if not p.is_bot]
+        if not humans:
+            # No real players left — cancel the (possibly idle) runner and drop.
+            runner = self._runners.pop(room.code, None)
+            if runner is not None and not room.ready.is_set():
+                runner.cancel()
+            RoomManager.remove(room.code)
+            self._broadcaster.update(players=0, status="waiting")
+            return
+        if was_host:
+            room.host = humans[0]
+            self._broadcaster.update(host=room.host.name)
+        await self._broadcast_state(room)
 
     # ── Jogo ─────────────────────────────────────────────────────────────────
 
@@ -238,7 +305,7 @@ class TermPlayServer:
                 transports, BlackjackRules(), names=names, stealth_flags=stealth_flags
             )
         else:
-            controller = factory(transports, names, stealth_flags)
+            controller = factory(transports, names, stealth_flags, room.rules)
         try:
             await controller.run()
         finally:
@@ -332,9 +399,11 @@ class TermPlayServer:
             self._broadcast_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._broadcast_task
-        # Cancel in-flight client handlers (game loops, relays) so the event
-        # loop has nothing left blocking shutdown.
-        clients = list(self._clients)
+        # Cancel in-flight client handlers (game loops, relays) and room runners
+        # so the event loop has nothing left blocking shutdown.
+        runners = list(self._runners.values())
+        self._runners.clear()
+        clients = list(self._clients) + runners
         self._clients.clear()
         for task in clients:
             task.cancel()

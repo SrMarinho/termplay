@@ -20,7 +20,8 @@ class IMultiplayerController(Protocol):
 
 
 MpFactory = Callable[
-    [Sequence[ITransportAdapter], list[str], list[bool]], IMultiplayerController
+    [Sequence[ITransportAdapter], list[str], list[bool], object],
+    IMultiplayerController,
 ]
 
 

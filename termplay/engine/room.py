@@ -29,6 +29,7 @@ class Room:
     code: str
     host: RoomPlayer
     game: str = "uno"
+    rules: object = "standard"  # preset name or a flags dict (Uno rule variants)
     max_players: int = 8
     players: list[RoomPlayer] = field(default_factory=list)
     ready: asyncio.Event = field(default_factory=asyncio.Event)
@@ -62,9 +63,17 @@ class RoomManager:
     _rooms: ClassVar[dict[str, Room]] = {}
 
     @classmethod
-    def create(cls, host: RoomPlayer, max_players: int = 8, game: str = "uno") -> Room:
+    def create(
+        cls,
+        host: RoomPlayer,
+        max_players: int = 8,
+        game: str = "uno",
+        rules: object = "standard",
+    ) -> Room:
         code = cls._gen_code()
-        room = Room(code=code, host=host, game=game, max_players=max_players)
+        room = Room(
+            code=code, host=host, game=game, rules=rules, max_players=max_players
+        )
         room.players.append(host)
         cls._rooms[code] = room
         return room

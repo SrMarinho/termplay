@@ -189,6 +189,7 @@ class WebGateway:
                 "action": ACTION_CREATE_ROOM,
                 "name": name,
                 "game": str(msg.get("game") or "uno"),
+                "rules": str(msg.get("rules") or "standard"),
             }
         return {
             "action": ACTION_JOIN_ROOM,

@@ -42,5 +42,5 @@ class Hangman(IGame):
 
 
 MultiplayerRegistry.register(
-    "forca", lambda t, n, s: HangmanController(t, n, s)
+    "forca", lambda t, n, s, rules="standard": HangmanController(t, n, s)
 )
