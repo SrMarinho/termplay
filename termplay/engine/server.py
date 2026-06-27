@@ -362,17 +362,26 @@ class TermPlayServer:
     async def _add_bot(self, room: Room) -> None:
         if room.is_full:
             return
-        from termplay.engine.bot_transport import BotTransportAdapter
-
         bot_num = sum(1 for p in room.players if p.is_bot) + 1
         bot_name = f"Bot {bot_num}"
         bot = RoomPlayer(
             name=bot_name,
-            transport=BotTransportAdapter(bot_name),
+            transport=self._make_bot_transport(room.game, bot_name),
             is_bot=True,
         )
         room.add_player(bot)
         await self._broadcast_state(room)
+
+    @staticmethod
+    def _make_bot_transport(game: str, name: str) -> ITransportAdapter:
+        """Pick the CPU transport whose AI matches the room's game."""
+        if (game or "").lower() == "blackjack":
+            from termplay.games.blackjack.application.bot_transport import (
+                BlackjackBotTransportAdapter,
+            )
+            return BlackjackBotTransportAdapter(name)
+        from termplay.engine.bot_transport import BotTransportAdapter
+        return BotTransportAdapter(name)
 
     async def _kick_player(self, room: Room, target: str) -> None:
         player = next((p for p in room.players if p.name == target), None)

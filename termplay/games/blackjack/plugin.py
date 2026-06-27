@@ -9,8 +9,12 @@ from typing_extensions import override
 
 from termplay.engine.game import IGame
 from termplay.engine.interfaces import ITransportAdapter
+from termplay.engine.multiplayer import MultiplayerRegistry
 from termplay.engine.registry import GameRegistry
 from termplay.games.blackjack.application.game_controller import GameController
+from termplay.games.blackjack.application.versus_controller import (
+    BlackjackVersusController,
+)
 from termplay.games.blackjack.display.renderer import RichRenderer
 from termplay.games.blackjack.domain.rules import BlackjackRules
 
@@ -64,3 +68,10 @@ class Blackjack(IGame):
         )
         await transport.write(help_text)
         await transport.read_line()
+
+
+# Multiplayer rooms use the player-vs-player versus controller (no house dealer).
+MultiplayerRegistry.register(
+    "blackjack",
+    lambda t, n, s, rules="": BlackjackVersusController(t, n, s),
+)

@@ -11,6 +11,7 @@ import { renderCenter, renderOpponents } from "./table.js";
 
 function init(actions) {
   ctx.actions = actions;
+  els.stage = document.getElementById("uno-stage");
   els.opponents = document.getElementById("uno-opponents");
   els.drawpile = document.getElementById("uno-drawpile");
   els.discard = document.getElementById("uno-discard");
@@ -37,6 +38,7 @@ function init(actions) {
 function reset() {
   ctx.prev = null;
   stopTimer();
+  els.stage?.classList.add("hidden");
   els.opponents.replaceChildren();
   els.discard.replaceChildren();
   els.hand.replaceChildren();
@@ -56,6 +58,7 @@ function render(state) {
   if (state.phase === "over") { removeMinigame(); renderOver(state); return; }
   if (state.phase === "minigame") { renderMinigame(state); return; }
 
+  els.stage?.classList.remove("hidden");
   removeMinigame();
 
   const handGrew = ctx.prev && state.hand.length > ctx.prev.hand.length;
