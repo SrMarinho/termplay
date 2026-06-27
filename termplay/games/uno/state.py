@@ -46,6 +46,8 @@ class UnoState:
     current: int = 0
     direction: int = 1
     active_color: str = ""
+    pending_draws: int = 0        # accumulated draw count (stacking)
+    pending_draw_value: str = ""  # "draw2" or "wild4" — restricts what can stack
 
     @classmethod
     def new(cls, num_players: int, hand_size: int = 7) -> UnoState:

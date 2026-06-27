@@ -9,6 +9,7 @@ from termplay.engine.interfaces import ITransportAdapter
 from termplay.engine.multiplayer import MultiplayerRegistry
 from termplay.engine.registry import GameRegistry
 from termplay.games.uno.controller import UnoController
+from termplay.games.uno.ruleset import UnoRuleset
 
 
 @GameRegistry.register
@@ -42,4 +43,9 @@ class Uno(IGame):
         await transport.read_line()
 
 
-MultiplayerRegistry.register("uno", lambda t, n, s: UnoController(t, n, s))
+MultiplayerRegistry.register(
+    "uno",
+    lambda t, n, s, rules="standard": UnoController(
+        t, n, s, UnoRuleset.from_spec(rules)
+    ),
+)

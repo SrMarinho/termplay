@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 from collections import Counter
 
 from typing_extensions import override
@@ -15,6 +16,7 @@ from typing_extensions import override
 from termplay.engine.interfaces import ITransportAdapter
 
 _THINK_DELAY = 0.8  # seconds between receiving state and responding
+_MINIGAME_REACTION = (0.4, 2.6)  # bot reaction time range for the tap minigame
 _UNO_TAG = "uno.state"
 _COLORS = ("R", "G", "B", "Y")
 
@@ -33,7 +35,11 @@ class BotTransportAdapter(ITransportAdapter):
         self._name = name
         self._playable: list[int] = []
         self._need_color = False
+        self._need_target = False
+        self._targets: list[int] = []
+        self._counts: list[int] = []
         self._hand: list[str] = []
+        self._phase = "play"
         self._move_ready = asyncio.Event()
 
     @override
@@ -50,10 +56,19 @@ class BotTransportAdapter(ITransportAdapter):
                 continue
             phase = data.get("phase")
             if phase == "play":
+                self._phase = "play"
                 self._playable = [int(i) for i in data.get("playable", [])]
                 self._need_color = bool(data.get("need_color"))
+                self._need_target = bool(data.get("need_target"))
+                self._targets = [int(i) for i in data.get("targets", [])]
+                self._counts = [int(p[1]) for p in data.get("players", [])]
                 self._hand = [str(c) for c in data.get("hand", [])]
                 self._move_ready.set()
+            elif phase == "minigame":
+                # Only react while still in play (not yet tapped this round).
+                if not data.get("you_safe"):
+                    self._phase = "minigame"
+                    self._move_ready.set()
             elif phase in ("toast", "over"):
                 pass  # ignore
 
@@ -61,10 +76,24 @@ class BotTransportAdapter(ITransportAdapter):
     async def read_line(self) -> str:
         await self._move_ready.wait()
         self._move_ready.clear()
+
+        if self._phase == "minigame":
+            # Random reaction time so bots aren't always the slowest (or fastest).
+            await asyncio.sleep(random.uniform(*_MINIGAME_REACTION))
+            return "tap"
+
         await asyncio.sleep(_THINK_DELAY)
 
         if self._need_color:
             return _best_color(self._hand)
+
+        if self._need_target and self._targets:
+            # Swap with the smallest hand to steal the advantage.
+            best = min(
+                self._targets,
+                key=lambda i: self._counts[i] if i < len(self._counts) else 1 << 30,
+            )
+            return str(best + 1)  # 1-indexed global player
 
         if self._playable:
             idx = self._playable[0]
