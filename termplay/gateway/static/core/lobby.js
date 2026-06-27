@@ -1,7 +1,7 @@
 // lobby.js — room list + lobby (players, chat, host controls). Pure view.
 let handlers = {
   onJoin: () => {}, onChat: () => {}, onLeave: () => {},
-  onStart: () => {}, onAddBot: () => {},
+  onStart: () => {}, onAddBot: () => {}, onKick: () => {},
 };
 let role = "guest"; // "host" | "guest"
 let myName = "";
@@ -74,6 +74,15 @@ export function renderState(state) {
       (name === myName ? `<span class="badge you">you</span>` : "") +
       (name === state.host ? `<span class="badge host">host</span>` : "") +
       (isBot ? `<span class="badge bot">bot</span>` : "");
+    // Host can remove anyone except themselves (the host seat).
+    if (role === "host" && name !== state.host) {
+      const kick = document.createElement("button");
+      kick.className = "kick-btn";
+      kick.title = "Remover";
+      kick.textContent = "✕";
+      kick.addEventListener("click", () => handlers.onKick(name));
+      li.appendChild(kick);
+    }
     lobbyPlayers.appendChild(li);
   }
   if (role === "host") {

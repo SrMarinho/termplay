@@ -399,3 +399,89 @@ body {
 }
 .placeholder-view .ph-title { font-size: 22px; font-weight: 800; color: var(--gold); }
 .placeholder-view .ph-sub { margin-top: 8px; color: var(--muted); font-size: 14px; }
+
+/* ── Blackjack (player-vs-player) ──────────────────────────────────────────── */
+.bj-root { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+.bj-others {
+  display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
+}
+.bj-seat {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; min-width: 150px; transition: transform .15s, box-shadow .15s;
+}
+.bj-seat.active { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); transform: translateY(-3px); }
+.bj-seat.bust { opacity: .6; }
+.bj-seat-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.bj-seat-head .bj-name { font-weight: 700; }
+.bj-seat-head .bj-score { color: var(--gold); }
+.bj-seat-cards, .bj-me-cards { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; }
+.bj-seat-foot { display: flex; align-items: center; gap: 8px; }
+.bj-seat-foot .bj-value { font-size: 20px; font-weight: 800; }
+.bj-badge {
+  font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 5px;
+  letter-spacing: .5px; background: var(--border); color: var(--ink);
+}
+.bj-badge.bust { background: var(--R); color: #fff; }
+.bj-badge.blackjack { background: var(--gold); color: #1b1d23; }
+.bj-badge.stand { background: var(--blue); color: #fff; }
+
+.bj-center { text-align: center; }
+.bj-target { font-size: 12px; color: var(--muted); letter-spacing: .5px; }
+.bj-message { font-size: 16px; min-height: 24px; margin-top: 4px; }
+.bj-message.active { color: var(--gold); font-weight: 700; }
+.bj-timer { margin-top: 6px; }
+.bj-timer-label { font-size: 20px; font-weight: 800; color: var(--gold); }
+.bj-timer-label.urgent { color: var(--R); }
+
+.bj-me {
+  margin-top: auto; border-top: 1px solid var(--border); padding-top: 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.bj-me-info { font-size: 14px; color: var(--muted); }
+.bj-actions { display: flex; gap: 12px; }
+
+.bj-card {
+  width: 56px; height: 78px; border-radius: 8px; background: #f4f4f6; color: #1b1d23;
+  border: 1px solid #cfd2da; box-shadow: 0 2px 6px rgba(0,0,0,.4);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-weight: 800;
+}
+.bj-card.red { color: #d12b3a; }
+.bj-card .bj-rank { font-size: 20px; line-height: 1; }
+.bj-card .bj-suit { font-size: 20px; line-height: 1; }
+
+.bj-over {
+  position: absolute; inset: 0; z-index: 220; display: flex;
+  align-items: center; justify-content: center; background: rgba(0,0,0,.6);
+}
+
+.uno-stage { flex: 1; display: flex; flex-direction: column; }
+
+.kick-btn {
+  margin-left: auto; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 6px;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  cursor: pointer; font-size: 12px; line-height: 1; transition: all .12s;
+}
+.kick-btn:hover { background: var(--R); border-color: var(--R); color: #fff; }
+
+/* ── elegant scrollbars ─────────────────────────────────────────────────────── */
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--panel2), var(--border));
+  border-radius: 10px; border: 2px solid transparent; background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(var(--border), var(--gold));
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
+.player-list:hover, .chat-log:hover { scrollbar-color: var(--gold) transparent; }
+
+/* make Leave stand out (lobby + game) */
+#leave-btn, #uno-quit {
+  border: 1px solid var(--R); color: var(--R); background: transparent;
+  font-weight: 700; transition: all .12s;
+}
+#leave-btn:hover, #uno-quit:hover { background: var(--R); color: #fff; }

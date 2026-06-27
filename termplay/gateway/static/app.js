@@ -72,6 +72,8 @@ const actions = {
   chooseColor: (c) => sendInput(c),
   chooseTarget: (globalIdx) => sendInput(String(globalIdx + 1)),
   tap: () => sendInput("tap"),
+  hit: () => sendInput("h"),
+  stand: () => sendInput("s"),
   quit: () => sendInput("q"),
   // After a match ends, go back to the lobby room (for a rematch), not the room list.
   backToLobby: () => { resetActiveView(); show("lobby"); },
@@ -189,6 +191,7 @@ lobby.init({
   onLeave: () => { gateway.send({ action: "leave" }); leaveRoom(); },
   onStart: () => gateway.send({ action: "start_game", rules: rulesSpec }),
   onAddBot: () => gateway.send({ action: "add_bot" }),
+  onKick: (name) => gateway.send({ action: "kick", target: name }),
 });
 for (const view of allViews()) view.init(actions);
 
