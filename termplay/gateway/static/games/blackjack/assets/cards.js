@@ -10,6 +10,8 @@ export function makeCard(face) {
   const el = document.createElement("div");
   el.className = "bj-card" + (RED_SUITS.has(suit) ? " red" : "");
   el.innerHTML =
+    `<span class="card-deco tl"></span><span class="card-deco tr"></span>` +
+    `<span class="card-deco bl"></span><span class="card-deco br"></span>` +
     `<span class="bj-rank">${rank}</span><span class="bj-suit">${suit}</span>`;
   return el;
 }

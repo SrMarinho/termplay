@@ -196,6 +196,7 @@ lobby.init({
 for (const view of allViews()) view.init(actions);
 
 document.getElementById("host-btn").addEventListener("click", hostRoom);
+document.getElementById("host-btn-2")?.addEventListener("click", hostRoom);
 initGameGrid();
 initRulesModal();
 document.getElementById("uno-quit").addEventListener("click", () => {
@@ -236,7 +237,11 @@ function leaveRoom() {
 }
 
 function onStatus(status) {
-  connBadge.textContent = status;
+  const labels = {
+    connected: "LAN · estável", disconnected: "LAN · offline",
+    error: "LAN · erro", connecting: "LAN · conectando",
+  };
+  connBadge.textContent = labels[status] || `LAN · ${status}`;
   connBadge.className = `conn ${status}`;
   if (status === "connected") attemptRejoin();
 }

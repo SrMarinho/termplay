@@ -1,4 +1,4 @@
-// lobby.js — room list + lobby (players, chat, host controls). Pure view.
+// lobby.js — room list (Salão) + lobby (assentos, chat, host controls). Pure view.
 let handlers = {
   onJoin: () => {}, onChat: () => {}, onLeave: () => {},
   onStart: () => {}, onAddBot: () => {}, onKick: () => {},
@@ -10,12 +10,19 @@ const roomList = document.getElementById("room-list");
 const noRooms = document.getElementById("no-rooms");
 const roomCount = document.getElementById("room-count");
 const lobbyCode = document.getElementById("lobby-code");
+const lobbyTitle = document.querySelector(".lobby-title");
+const lobbySub = document.querySelector(".lobby-sub");
 const lobbyPlayers = document.getElementById("lobby-players");
+const playersCount = document.querySelector(".players-panel .players-count");
 const chatLog = document.getElementById("chat-log");
 const hostControls = document.getElementById("host-controls");
 const guestWait = document.getElementById("guest-wait");
 const startBtn = document.getElementById("start-btn");
 const startHint = document.getElementById("start-hint");
+
+// Pretty game names for the lobby subtitle / room rows.
+const GAME_NAMES = { uno: "Uno", blackjack: "Blackjack", hangman: "Forca", velha: "Velha" };
+const gameName = (g) => GAME_NAMES[g] || (g ? g[0].toUpperCase() + g.slice(1) : "Jogo");
 
 export function init(h) {
   handlers = h;
@@ -37,45 +44,76 @@ export function setRole(r, name) {
   guestWait.classList.toggle("hidden", role === "host");
 }
 
+// First letters of a name → up to two uppercase initials for an avatar.
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  const a = parts[0]?.[0] || "?";
+  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return (a + b).toUpperCase();
+}
+function avatar(name, extra = "") {
+  return `<span class="avatar ${extra}">${esc(initials(name))}</span>`;
+}
+
 export function renderRooms(rooms) {
   roomList.replaceChildren();
   noRooms.style.display = rooms.length ? "none" : "block";
-  roomCount.textContent = rooms.length ? `${rooms.length} total` : "";
-  for (const room of rooms) {
+  roomCount.textContent = rooms.length ? `${rooms.length} salas · atualizar ↻` : "atualizar ↻";
+  rooms.forEach((room, i) => {
     const li = document.createElement("li");
     li.className = "room";
+    li.style.animationDelay = `${i * 60}ms`;
     const joinable = room.status === "waiting" && room.players < room.max_players;
-    const info = document.createElement("div");
-    info.className = "room-info";
-    info.innerHTML =
-      `<div class="room-host">${esc(room.host)} <span class="badge game">${esc(room.game)}</span></div>` +
-      `<div class="room-sub muted">${room.players}/${room.max_players} players` +
-      `${room.status === "playing" ? " · in progress" : ""}</div>`;
+    const statusBadge = room.status === "playing"
+      ? `<span class="badge starting">em jogo</span>`
+      : `<span class="badge open">aberta</span>`;
+    const btnLabel = room.status === "playing" ? "em jogo" : joinable ? "entrar" : "cheia";
+
+    li.innerHTML =
+      `<span class="room-code">${esc(room.code || "—")}</span>` +
+      `<span class="room-game">${esc(gameName(room.game))}</span>` +
+      `<span class="room-host">${avatar(room.host)}<span>${esc(room.host)}</span></span>` +
+      `<span class="room-players">${room.players} / ${room.max_players}</span>` +
+      `<span>${statusBadge}</span>` +
+      `<span class="ra"></span>`;
     const btn = document.createElement("button");
-    btn.className = "btn secondary";
-    btn.textContent = room.status === "playing" ? "in game" : joinable ? "Join" : "full";
+    btn.className = "btn primary small";
+    btn.textContent = btnLabel;
     btn.disabled = !joinable;
     btn.addEventListener("click", () => handlers.onJoin(room));
-    li.append(info, btn);
+    li.querySelector(".ra").appendChild(btn);
     roomList.appendChild(li);
-  }
+  });
 }
 
 export function renderState(state) {
-  lobbyCode.textContent = state.code ? `· room ${state.code}` : "";
+  lobbyCode.textContent = state.code ? `· ${state.code}` : "";
+  if (lobbyTitle) lobbyTitle.textContent = state.host ? `A noite de ${state.host}` : "A noite começa";
+  if (lobbySub) {
+    const max = state.max_players ? ` · até ${state.max_players} jogadores` : "";
+    lobbySub.textContent = `${gameName(state.game)}${max} · LAN privada`;
+  }
+
+  const players = state.players || [];
+  if (playersCount) {
+    playersCount.textContent = `Jogadores · ${players.length}${state.max_players ? ` de ${state.max_players}` : ""}`;
+  }
+
   lobbyPlayers.replaceChildren();
   const bots = new Set(state.bots || []);
-  for (const name of state.players || []) {
+  for (const name of players) {
     const li = document.createElement("li");
+    li.className = "seat";
     const isBot = bots.has(name);
+    const isHost = name === state.host;
+    const role_ = isBot ? "bot" : isHost ? "anfitrião" : "convidado";
     li.innerHTML =
-      `<span class="dot" style="background:${isBot ? "#9ca0ac" : "#2a9d8f"}"></span>` +
-      `<span class="pl-name">${esc(name)}</span>` +
-      (name === myName ? `<span class="badge you">you</span>` : "") +
-      (name === state.host ? `<span class="badge host">host</span>` : "") +
-      (isBot ? `<span class="badge bot">bot</span>` : "");
-    // Host can remove anyone except themselves (the host seat).
-    if (role === "host" && name !== state.host) {
+      avatar(name, isHost ? "avatar-online" : "") +
+      `<span class="seat-body">` +
+      `<span class="seat-name">${esc(name)}${name === myName ? " · você" : ""}</span>` +
+      `<span class="seat-role">${role_}</span></span>` +
+      `<span class="chip seat-chip">${isBot ? "bot" : "pronto"}</span>`;
+    if (role === "host" && !isHost) {
       const kick = document.createElement("button");
       kick.className = "kick-btn";
       kick.title = "Remover";
@@ -85,26 +123,31 @@ export function renderState(state) {
     }
     lobbyPlayers.appendChild(li);
   }
+  // one empty seat hint while the table is not full
+  if (state.max_players && players.length < state.max_players) {
+    const empty = document.createElement("li");
+    empty.className = "seat empty";
+    empty.textContent = "cadeira livre";
+    lobbyPlayers.appendChild(empty);
+  }
+
   if (role === "host") {
     startBtn.disabled = !state.can_start;
     startHint.textContent = state.can_start
       ? ""
-      : `Need ${state.min_players} players (${state.player_count} now)`;
+      : `Precisa de ${state.min_players} jogadores (${state.player_count} agora)`;
   }
 }
 
 export function addChat(name, text) {
   const li = document.createElement("li");
-  li.innerHTML = `<b style="color:${nickColor(name)}">${esc(name)}</b>: ${esc(text)}`;
+  const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  li.innerHTML =
+    `<div class="chat-msg-head"><span class="chat-name">${esc(name)}</span>` +
+    `<span class="chat-time">${time}</span></div>` +
+    `<div class="chat-text">${esc(text)}</div>`;
   chatLog.appendChild(li);
   chatLog.scrollTop = chatLog.scrollHeight;
-}
-
-function nickColor(name) {
-  const palette = ["#e63946", "#2a9d8f", "#457b9d", "#e9c46a", "#9d4edd", "#f4a261"];
-  let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return palette[h % palette.length];
 }
 
 function esc(s) {

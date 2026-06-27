@@ -6,12 +6,20 @@ import { COLOR_BG, ctx, els, esc } from "./context.js";
 
 // ── opponents arc ─────────────────────────────────────────────────────────────
 
+// Initials for a player avatar (e.g. "Helena Vaz" → "HV").
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  const a = parts[0]?.[0] || "?";
+  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return (a + b).toUpperCase();
+}
+
 export function renderOpponents(state) {
-  // Save old fan rects BEFORE wiping DOM (keyed by player index).
-  const oldFanRects = {};
+  // Save old pip-stack rects BEFORE wiping DOM (keyed by player index).
+  const oldRects = {};
   for (const el of els.opponents.querySelectorAll(".opponent[data-idx]")) {
-    const fan = el.querySelector(".fan");
-    if (fan) oldFanRects[el.dataset.idx] = fan.getBoundingClientRect();
+    const pips = el.querySelector(".opp-pips");
+    if (pips) oldRects[el.dataset.idx] = pips.getBoundingClientRect();
   }
 
   // Detect count changes vs prev state.
@@ -26,7 +34,7 @@ export function renderOpponents(state) {
     });
   }
 
-  // Rebuild DOM.
+  // Rebuild DOM — a row of horizontal seats with avatar + count + pip stack.
   els.opponents.replaceChildren();
   state.players.forEach(([name, count], i) => {
     if (i === state.you) return;
@@ -35,24 +43,15 @@ export function renderOpponents(state) {
     seat.dataset.idx = i;
     if (i === state.current) seat.classList.add("active");
 
-    const fan = document.createElement("div");
-    fan.className = "fan";
-    const shown = Math.min(count, 7);
-    for (let j = 0; j < shown; j++) {
-      const back = createCardBack({ width: 38, height: 54 });
-      back.style.marginLeft = j === 0 ? "0" : "-24px";
-      back.style.transform = `rotate(${(j - shown / 2) * 5}deg)`;
-      fan.appendChild(back);
-    }
-    const label = document.createElement("div");
-    label.className = "opponent-label";
     const isBot = String(name).startsWith("Bot");
-    label.innerHTML =
-      `<span class="opp-name">${esc(name)}</span>` +
-      (isBot ? `<span class="badge bot">BOT</span>` : "") +
-      `<span class="opp-count">· ${count} cards</span>`;
+    const pips = Array.from({ length: Math.min(count, 7) }, () => `<span class="pip"></span>`).join("");
+    seat.innerHTML =
+      `<span class="avatar sm">${esc(initials(name))}</span>` +
+      `<div class="opp-body"><span class="opp-name">${esc(name)}` +
+      (isBot ? ` <span class="badge bot">bot</span>` : "") + `</span>` +
+      `<span class="opp-count">${count} cartas</span></div>` +
+      `<div class="opp-pips">${pips}</div>`;
 
-    seat.append(fan, label);
     els.opponents.appendChild(seat);
   });
 
@@ -62,12 +61,12 @@ export function renderOpponents(state) {
 
   for (const { idx, type } of changes) {
     const newSeat = els.opponents.querySelector(`.opponent[data-idx="${idx}"]`);
-    const newFanRect = newSeat?.querySelector(".fan")?.getBoundingClientRect();
+    const newRect = newSeat?.querySelector(".opp-pips")?.getBoundingClientRect();
 
-    if (type === "play" && oldFanRects[idx] && discardRect.width) {
-      flyCardAnim(oldFanRects[idx], discardRect, 300);
-    } else if (type === "draw" && newFanRect && drawRect.width) {
-      flyCardAnim(drawRect, newFanRect, 350);
+    if (type === "play" && oldRects[idx] && discardRect.width) {
+      flyCardAnim(oldRects[idx], discardRect, 300);
+    } else if (type === "draw" && newRect && drawRect.width) {
+      flyCardAnim(drawRect, newRect, 350);
     }
   }
 }
@@ -134,9 +133,9 @@ export function flyCardAnim(fromRect, toRect, duration = 300) {
     zIndex: "200",
     pointerEvents: "none",
     borderRadius: "8px",
-    border: "2px solid var(--gold)",
-    background: "repeating-linear-gradient(45deg,#1b1d23 0 6px,#262a33 6px 12px)",
-    boxShadow: "0 4px 10px rgba(0,0,0,.5)",
+    border: "1px solid oklch(74.5% .118 80/.6)",
+    background: "linear-gradient(160deg,#23200F,#141109)",
+    boxShadow: "0 8px 18px -6px rgba(0,0,0,.6)",
   });
   document.body.appendChild(el);
 

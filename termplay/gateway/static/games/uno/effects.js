@@ -45,7 +45,7 @@ export function flash(text) {
     els.message.classList.remove("flash");
     if (ctx.prev) {
       els.message.textContent =
-        ctx.prev.message || (ctx.prev.your_turn ? "Your turn" : "Waiting…");
+        ctx.prev.message || (ctx.prev.your_turn ? "Sua vez" : "Aguardando…");
     }
   }, 2500);
 }

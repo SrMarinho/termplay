@@ -42,20 +42,39 @@ export function renderHand(state, newCount) {
     els.hand.appendChild(card);
   });
 
-  const myName = state.players[state.you] ? state.players[state.you][0] : "you";
-  const hint = state.may_play_drawn
-    ? `<span class="hint">play the drawn card or pass</span>`
-    : `<span class="hint">highlighted = playable</span>`;
+  const myName = state.players[state.you] ? state.players[state.you][0] : "você";
+  const ini = initials(myName);
+  const turnText = state.may_play_drawn
+    ? "jogue a carta comprada ou passe"
+    : state.your_turn ? "sua vez" : "aguarde sua vez";
   els.handinfo.innerHTML =
-    `<span class="me-name">${esc(myName)}</span> · ${total} cards` + hint;
+    `<span class="avatar">${esc(ini)}</span>` +
+    `<div class="me-body"><span class="me-name">${esc(myName)} · você</span>` +
+    `<span class="me-sub">${total} cartas · ${turnText}</span></div>` +
+    `<div class="hand-actions"></div>`;
+  const actions = els.handinfo.querySelector(".hand-actions");
 
   if (state.may_play_drawn) {
     const passBtn = document.createElement("button");
-    passBtn.className = "btn secondary pass-btn";
-    passBtn.textContent = "Pass";
+    passBtn.className = "btn ghost small";
+    passBtn.textContent = "Passar";
     passBtn.addEventListener("click", () => ctx.actions.pass());
-    els.handinfo.appendChild(passBtn);
+    actions.appendChild(passBtn);
+  } else if (state.your_turn && !state.need_color) {
+    const drawBtn = document.createElement("button");
+    drawBtn.className = "btn primary small";
+    drawBtn.textContent = "Comprar";
+    drawBtn.addEventListener("click", () => ctx.actions.draw());
+    actions.appendChild(drawBtn);
   }
+}
+
+// Initials for the player avatar (e.g. "Otávio Ramires" → "OR").
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  const a = parts[0]?.[0] || "?";
+  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return (a + b).toUpperCase();
 }
 
 // ── play animation ────────────────────────────────────────────────────────────

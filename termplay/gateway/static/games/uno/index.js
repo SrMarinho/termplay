@@ -72,7 +72,7 @@ function render(state) {
   const isMyTurn = state.current === state.you;
   if (els.handZone) els.handZone.classList.toggle("your-turn", isMyTurn);
 
-  els.message.textContent = state.message || (state.your_turn ? "Your turn" : "Waiting…");
+  els.message.textContent = state.message || (state.your_turn ? "Sua vez" : "Aguardando…");
   els.message.classList.toggle("active", !!state.your_turn);
   els.picker.classList.toggle("hidden", !state.need_color);
   renderTargetPicker(state);
