@@ -21,6 +21,7 @@ from termplay.engine.interfaces import ITransportAdapter
 from termplay.games.blackjack.domain.card import all_cards
 from termplay.games.blackjack.domain.deck import Deck
 from termplay.games.blackjack.domain.hand import Hand
+from termplay.games.blackjack.domain.ruleset import BlackjackRuleset
 
 BJ_STATE_TAG = "blackjack.state"
 TURN_TIMEOUT = 30  # seconds per turn
@@ -57,6 +58,7 @@ class BlackjackVersusController:
         ]
         random.shuffle(players)
         self._players = players
+        self._rules = BlackjackRuleset.from_spec(rules)
         self._message = ""
         self._turn_deadline: float = 0.0
         self._start = 0  # index of the player who acts first this round
@@ -143,13 +145,21 @@ class BlackjackVersusController:
                     self._message = f"{player.name} estourou em {player.hand.value}!"
 
     def _resolve(self) -> _BJPlayer | None:
-        contenders = [
-            p for p in self._active() if not p.hand.is_bust
-        ]
+        active = self._active()
+        busted = [p for p in active if p.hand.is_bust]
+        contenders = [p for p in active if not p.hand.is_bust]
+
+        if self._rules.bust_penalty:
+            for p in busted:
+                p.score -= 1
+                self._log.event("bust_penalty", player=p.name, score=p.score)
+
         if not contenders:
-            self._message = "Todos estouraram — empate, sem ponto."
+            bust_note = " (−1 pt cada)" if self._rules.bust_penalty and busted else ""
+            self._message = f"Todos estouraram — empate, sem ponto{bust_note}."
             self._log.event("round_push", reason="all_bust")
             return None
+
         best = max(p.hand.value for p in contenders)
         winners = [p for p in contenders if p.hand.value == best]
         if len(winners) == 1:
@@ -224,7 +234,7 @@ class BlackjackVersusController:
             "players": players,
             "hand": [c.display for c in me.hand.cards],
             "hand_value": me.hand.value,
-            "deadline": self._turn_deadline if your_turn else 0,
+            "deadline": self._turn_deadline,
             "message": self._message,
             "target_score": TARGET_SCORE,
             "winner": self._winner_name,

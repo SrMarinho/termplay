@@ -251,11 +251,15 @@ class UnoController:
         if not targets:
             return
         if len(targets) == 1:
-            target = targets[0]
+            target: int | None = targets[0]
         else:
             self._turn_deadline = time.time() + TURN_TIMEOUT
             await self._broadcast(active_idx=idx, need_target_for=idx, targets=targets)
             target = await self._choose_target(player, targets)
+        if target is None:
+            self._message = f"{player.name} optou por não trocar de mão"
+            self._log.event("zero_swap_skip", player=player.name)
+            return
         self._state.hands[idx], self._state.hands[target] = (
             self._state.hands[target],
             self._state.hands[idx],
@@ -267,8 +271,8 @@ class UnoController:
             "zero_swap", player=player.name, target=self._players[target].name
         )
 
-    async def _choose_target(self, player: _Player, targets: list[int]) -> int:
-        """Read a target player number (1-based global) from the player."""
+    async def _choose_target(self, player: _Player, targets: list[int]) -> int | None:
+        """Read a target player number (1-based global) from the player. Returns None to skip."""
         while True:
             remaining = self._turn_deadline - time.time()
             if remaining <= 0:
@@ -281,6 +285,8 @@ class UnoController:
                 return random.choice(targets)
             except ConnectionError:
                 return targets[0]
+            if raw == "skip":
+                return None
             digits = raw.lstrip("t@p")  # tolerate "t2" / "@2" / "p2" / "2"
             if digits.isdigit():
                 pick = int(digits) - 1
@@ -554,7 +560,7 @@ class UnoController:
             "need_color": need_color,
             "need_target": need_target,
             "targets": targets or [],
-            "deadline": self._turn_deadline if your_turn else 0,
+            "deadline": self._turn_deadline,
             "message": self._message,
             "pending_draws": st.pending_draws,
             "may_play_drawn": may_play_drawn is not None,

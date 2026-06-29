@@ -1,4 +1,5 @@
 // lobby.js — room list (Salão) + lobby (assentos, chat, host controls). Pure view.
+import { playerColor } from "./colors.js";
 let handlers = {
   onJoin: () => {}, onChat: () => {}, onLeave: () => {},
   onStart: () => {}, onAddBot: () => {}, onKick: () => {},
@@ -51,8 +52,9 @@ function initials(name) {
   const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return (a + b).toUpperCase();
 }
-function avatar(name, extra = "") {
-  return `<span class="avatar ${extra}">${esc(initials(name))}</span>`;
+function avatar(name, extra = "", playerIdx = -1) {
+  const style = playerIdx >= 0 ? ` style="--pc:${playerColor(playerIdx)}"` : "";
+  return `<span class="avatar ${extra}"${style}>${esc(initials(name))}</span>`;
 }
 
 export function renderRooms(rooms) {
@@ -87,6 +89,9 @@ export function renderRooms(rooms) {
 }
 
 export function renderState(state) {
+  // Host migration: server made us host after the previous one left.
+  if (state.host && state.host === myName && role !== "host") setRole("host", myName);
+
   lobbyCode.textContent = state.code ? `· ${state.code}` : "";
   if (lobbyTitle) lobbyTitle.textContent = state.host ? `A noite de ${state.host}` : "A noite começa";
   if (lobbySub) {
@@ -101,14 +106,14 @@ export function renderState(state) {
 
   lobbyPlayers.replaceChildren();
   const bots = new Set(state.bots || []);
-  for (const name of players) {
+  players.forEach((name, playerIdx) => {
     const li = document.createElement("li");
     li.className = "seat";
     const isBot = bots.has(name);
     const isHost = name === state.host;
     const role_ = isBot ? "bot" : isHost ? "anfitrião" : "convidado";
     li.innerHTML =
-      avatar(name, isHost ? "avatar-online" : "") +
+      avatar(name, isHost ? "avatar-online" : "", playerIdx) +
       `<span class="seat-body">` +
       `<span class="seat-name">${esc(name)}${name === myName ? " · você" : ""}</span>` +
       `<span class="seat-role">${role_}</span></span>` +
@@ -122,7 +127,7 @@ export function renderState(state) {
       li.appendChild(kick);
     }
     lobbyPlayers.appendChild(li);
-  }
+  });
   // one empty seat hint while the table is not full
   if (state.max_players && players.length < state.max_players) {
     const empty = document.createElement("li");
@@ -139,6 +144,8 @@ export function renderState(state) {
   }
 }
 
+const MAX_CHAT = 100;
+
 export function addChat(name, text) {
   const li = document.createElement("li");
   const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -147,6 +154,9 @@ export function addChat(name, text) {
     `<span class="chat-time">${time}</span></div>` +
     `<div class="chat-text">${esc(text)}</div>`;
   chatLog.appendChild(li);
+  while (chatLog.children.length > MAX_CHAT) {
+    chatLog.removeChild(chatLog.firstChild);
+  }
   chatLog.scrollTop = chatLog.scrollHeight;
 }
 

@@ -3,6 +3,7 @@
 
 import { colorName, createCard, createCardBack } from "./assets/cards.js";
 import { COLOR_BG, ctx, els, esc } from "./context.js";
+import { playerColor } from "../../core/colors.js";
 
 // ── opponents arc ─────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ export function renderOpponents(state) {
     const isBot = String(name).startsWith("Bot");
     const pips = Array.from({ length: Math.min(count, 7) }, () => `<span class="pip"></span>`).join("");
     seat.innerHTML =
-      `<span class="avatar sm">${esc(initials(name))}</span>` +
+      `<span class="avatar sm" style="--pc:${playerColor(i)}">${esc(initials(name))}</span>` +
       `<div class="opp-body"><span class="opp-name">${esc(name)}` +
       (isBot ? ` <span class="badge bot">bot</span>` : "") + `</span>` +
       `<span class="opp-count">${count} cartas</span></div>` +

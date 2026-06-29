@@ -3,6 +3,7 @@
 // HTML with deal/play animations.
 
 import { registerView } from "../../core/registry.js";
+import { buildPalette } from "../../core/colors.js";
 import { ctx, els } from "./context.js";
 import { flash, renderOver, startTimer, stopTimer } from "./effects.js";
 import { renderHand } from "./hand.js";
@@ -57,6 +58,7 @@ function render(state) {
   if (state.phase === "toast") { flash(state.message); return; }
   if (state.phase === "over") { removeMinigame(); renderOver(state); return; }
   if (state.phase === "minigame") { renderMinigame(state); return; }
+  buildPalette(state.players.length);
 
   els.stage?.classList.remove("hidden");
   removeMinigame();
@@ -77,7 +79,7 @@ function render(state) {
   els.picker.classList.toggle("hidden", !state.need_color);
   renderTargetPicker(state);
 
-  if (state.your_turn && state.deadline) {
+  if (state.deadline) {
     startTimer(state.deadline);
   } else {
     stopTimer();

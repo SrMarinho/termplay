@@ -209,7 +209,9 @@ class TermPlayServer:
                 # Game phase: relay input until the match completes.
                 relay = asyncio.create_task(self._relay(adapter, room, player.name))
                 await room.game_complete.wait()
-                await relay
+                relay.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await relay
                 # Wait for the runner to return the room to the lobby, then loop
                 # back so the player can play another round.
                 while room.ready.is_set():

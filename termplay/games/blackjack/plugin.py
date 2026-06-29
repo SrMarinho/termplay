@@ -73,5 +73,5 @@ class Blackjack(IGame):
 # Multiplayer rooms use the player-vs-player versus controller (no house dealer).
 MultiplayerRegistry.register(
     "blackjack",
-    lambda t, n, s, rules="": BlackjackVersusController(t, n, s),
+    lambda t, n, s, rules="": BlackjackVersusController(t, n, s, rules),
 )

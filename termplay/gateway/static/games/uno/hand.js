@@ -3,6 +3,7 @@
 
 import { createCard } from "./assets/cards.js";
 import { COLOR_ORDER, ctx, els, esc } from "./context.js";
+import { playerColor } from "../../core/colors.js";
 
 export function renderHand(state, newCount) {
   els.hand.replaceChildren();
@@ -48,7 +49,7 @@ export function renderHand(state, newCount) {
     ? "jogue a carta comprada ou passe"
     : state.your_turn ? "sua vez" : "aguarde sua vez";
   els.handinfo.innerHTML =
-    `<span class="avatar">${esc(ini)}</span>` +
+    `<span class="avatar" style="--pc:${playerColor(state.you)}">${esc(ini)}</span>` +
     `<div class="me-body"><span class="me-name">${esc(myName)} · você</span>` +
     `<span class="me-sub">${total} cartas · ${turnText}</span></div>` +
     `<div class="hand-actions"></div>`;

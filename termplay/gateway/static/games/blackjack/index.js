@@ -1,11 +1,12 @@
-// games/blackjack/index.js — BlackjackView: renders the `blackjack.state` snapshot
-// for player-vs-player Blackjack and registers itself with the view registry.
+// games/blackjack/index.js — BlackjackView
 
 import { registerView } from "../../core/registry.js";
-import { makeCard } from "./assets/cards.js";
+import { makeCard } from "../../core/cards.js";
+import { buildPalette, playerColor } from "../../core/colors.js";
 
 const ctx = { actions: {}, root: null };
 let timerRaf = null;
+let prevCounts = []; // card count per player index
 
 const STATUS_LABEL = {
   bust: "ESTOUROU", stand: "PAROU", blackjack: "BLACKJACK", out: "saiu",
@@ -19,6 +20,7 @@ function reset() {
   stopTimer();
   ctx.root?.remove();
   ctx.root = null;
+  prevCounts = [];
 }
 
 function ensureRoot() {
@@ -26,9 +28,15 @@ function ensureRoot() {
   const root = document.createElement("div");
   root.className = "bj-root";
   root.innerHTML =
+    `<div class="bj-main">` +
+    `<button class="bj-score-toggle btn ghost small">Placar ▸</button>` +
     `<div class="bj-others"></div>` +
     `<div class="bj-center">` +
-    `<div class="bj-target"></div>` +
+    `<div class="bj-deck">` +
+    `<div class="bj-deck-card"></div>` +
+    `<div class="bj-deck-card"></div>` +
+    `<div class="bj-deck-card bj-deck-top"></div>` +
+    `</div>` +
     `<div class="bj-message"></div>` +
     `<div class="bj-timer hidden"><span class="bj-timer-label">30</span></div>` +
     `</div>` +
@@ -38,76 +46,191 @@ function ensureRoot() {
     `<div class="bj-actions">` +
     `<button class="btn primary bj-hit">Comprar (Hit)</button>` +
     `<button class="btn secondary bj-stand">Parar (Stand)</button>` +
-    `</div></div>`;
+    `</div></div></div>` +
+    `<aside class="bj-scoreboard"></aside>`;
   document.getElementById("screen-game").appendChild(root);
   root.querySelector(".bj-hit").addEventListener("click", () => ctx.actions.hit());
   root.querySelector(".bj-stand").addEventListener("click", () => ctx.actions.stand());
+  root.querySelector(".bj-score-toggle").addEventListener("click", () => {
+    root.querySelector(".bj-scoreboard").classList.toggle("open");
+  });
   ctx.root = root;
   return root;
 }
 
 function render(state) {
   if (state.phase === "over") { renderOver(state); return; }
+  buildPalette(state.players.length);
   const root = ensureRoot();
   root.querySelector(".bj-over")?.remove();
 
-  renderOthers(root, state);
+  renderScoreboard(root, state);
 
-  root.querySelector(".bj-target").textContent =
-    `Primeiro a ${state.target_score} pontos vence`;
+  // Collect cards that need fly animation (opacity:0 until flight lands)
+  const flyTargets = [];
+
+  renderOthers(root, state, flyTargets);
+
   const msg = root.querySelector(".bj-message");
   msg.textContent = state.message || (state.your_turn ? "Sua vez!" : "Aguardando…");
   msg.classList.toggle("active", !!state.your_turn);
 
-  // Your hand.
+  // Own hand
   const meCards = root.querySelector(".bj-me-cards");
+  const myPrev = prevCounts[state.you] ?? state.hand.length;
+  const myNew = Math.max(0, state.hand.length - myPrev);
   meCards.replaceChildren();
-  for (const face of state.hand || []) meCards.appendChild(makeCard(face));
-  const me = state.players[state.you] || ["você", [], 0, 0, ""];
-  root.querySelector(".bj-me-info").textContent =
-    `${me[0]} · total ${state.hand_value} · ${me[3]} pts`;
+  state.hand.forEach((face, i) => {
+    const card = makeCard(face);
+    if (i >= state.hand.length - myNew) flyTargets.push(card);
+    meCards.appendChild(card);
+  });
+  prevCounts[state.you] = state.hand.length;
 
-  // Actions only on your turn.
+  const me = state.players[state.you] || ["você", [], 0, 0, ""];
+  const meInfo = root.querySelector(".bj-me-info");
+  meInfo.innerHTML =
+    `<span class="avatar sm" style="--pc:${playerColor(state.you)}">${esc(initials(me[0]))}</span>` +
+    `<span style="color:${playerColor(state.you)}">${esc(me[0])}</span>` +
+    `<span class="bj-me-stats"> · total ${state.hand_value}</span>`;
+
   const canAct = !!state.your_turn;
   root.querySelector(".bj-hit").disabled = !canAct;
   root.querySelector(".bj-stand").disabled = !canAct;
   root.querySelector(".bj-actions").classList.toggle("hidden", !canAct);
 
-  if (state.your_turn && state.deadline) startTimer(root, state.deadline);
+  if (state.deadline) startTimer(root, state.deadline);
   else { stopTimer(); root.querySelector(".bj-timer").classList.add("hidden"); }
+
+  // Fly new cards from deck — double rAF ensures layout is computed before reading rects.
+  // Real cards are always visible; fly card is a cosmetic overlay.
+  if (flyTargets.length) {
+    const deckEl = root.querySelector(".bj-deck-top");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const fromRect = deckEl?.getBoundingClientRect();
+      if (!fromRect?.width) return;
+      flyTargets.forEach((card, k) => {
+        setTimeout(() => flyCard(fromRect, card), k * 110);
+      });
+    }));
+  }
 }
 
-function renderOthers(root, state) {
+function renderScoreboard(root, state) {
+  const sb = root.querySelector(".bj-scoreboard");
+  sb.replaceChildren();
+
+  const title = document.createElement("div");
+  title.className = "bj-sb-title";
+  title.textContent = `Meta · ${state.target_score} pts`;
+  sb.appendChild(title);
+
+  const ranked = state.players
+    .map(([name, , , score], i) => ({ name, score, idx: i }))
+    .sort((a, b) => b.score - a.score);
+
+  ranked.forEach(({ name, score, idx }, rank) => {
+    const isMe = idx === state.you;
+    const isActive = idx === state.current;
+    const pct = state.target_score > 0
+      ? Math.min(100, Math.round((score / state.target_score) * 100))
+      : 0;
+    const color = playerColor(idx);
+
+    const row = document.createElement("div");
+    row.className = "bj-sb-row" +
+      (isMe ? " bj-sb-me" : "") +
+      (isActive ? " bj-sb-active" : "");
+    row.innerHTML =
+      `<div class="bj-sb-top">` +
+      `<span class="bj-sb-rank">#${rank + 1}</span>` +
+      `<span class="avatar sm" style="--pc:${color}">${esc(initials(name))}</span>` +
+      `<span class="bj-sb-name">${esc(name)}${isMe ? " · você" : ""}</span>` +
+      `<span class="bj-sb-pts" style="color:${color}">${score}</span>` +
+      `</div>` +
+      `<div class="bj-sb-bar-wrap">` +
+      `<div class="bj-sb-bar" style="width:${pct}%;background:${color}"></div>` +
+      `</div>`;
+    sb.appendChild(row);
+  });
+}
+
+function renderOthers(root, state, flyTargets) {
   const wrap = root.querySelector(".bj-others");
   wrap.replaceChildren();
   state.players.forEach((p, i) => {
     if (i === state.you) return;
-    const [name, cards, value, score, status] = p;
-    const seat = document.createElement("div");
-    seat.className = "bj-seat" + (i === state.current ? " active" : "");
-    if (status === "bust") seat.classList.add("bust");
+    const [name, cards, value, , status] = p;
 
+    const prev = prevCounts[i] ?? cards.length;
+    const newCount = Math.max(0, cards.length - prev);
+    prevCounts[i] = cards.length;
+
+    const seat = document.createElement("div");
+    seat.className = "bj-seat" +
+      (i === state.current ? " active" : "") +
+      (status === "bust" ? " bust" : "");
+    seat.dataset.idx = i;
+
+    const statusLabel = STATUS_LABEL[status];
     const head = document.createElement("div");
     head.className = "bj-seat-head";
     head.innerHTML =
-      `<span class="bj-name">${esc(name)}</span>` +
-      `<span class="bj-score">${score} pts</span>`;
+      `<span class="avatar sm" style="--pc:${playerColor(i)}">${esc(initials(name))}</span>` +
+      `<span class="bj-name" style="color:${playerColor(i)}">${esc(name)}</span>` +
+      `<span class="bj-value">${value}</span>` +
+      (statusLabel ? `<span class="bj-badge ${status}">${statusLabel}</span>` : "");
 
     const hand = document.createElement("div");
     hand.className = "bj-seat-cards";
-    for (const face of cards) hand.appendChild(makeCard(face));
+    cards.forEach((face, ci) => {
+      const card = makeCard(face);
+      if (ci >= cards.length - newCount) flyTargets.push(card);
+      hand.appendChild(card);
+    });
 
-    const foot = document.createElement("div");
-    foot.className = "bj-seat-foot";
-    const label = STATUS_LABEL[status];
-    foot.innerHTML =
-      `<span class="bj-value">${value}</span>` +
-      (label ? `<span class="bj-badge ${status}">${label}</span>` : "");
-
-    seat.append(head, hand, foot);
+    seat.append(head, hand);
     wrap.appendChild(seat);
   });
 }
+
+// ── card fly animation ─────────────────────────────────────────────────────────
+
+function flyCard(fromRect, targetEl) {
+  const toRect = targetEl.getBoundingClientRect();
+  if (!fromRect.width || !toRect.width) return;
+
+  const fly = document.createElement("div");
+  Object.assign(fly.style, {
+    position: "fixed",
+    left: `${fromRect.left}px`,
+    top: `${fromRect.top}px`,
+    width: `${fromRect.width}px`,
+    height: `${fromRect.height}px`,
+    zIndex: "300",
+    pointerEvents: "none",
+    borderRadius: "9px",
+    border: "1px solid oklch(74.5% .118 80/.8)",
+    background: "linear-gradient(160deg, #3d3720 0%, #2a2410 50%, #1a1508 100%)",
+    boxShadow: "0 10px 28px -4px rgba(0,0,0,.9), inset 0 1px 0 oklch(74.5% .118 80/.2)",
+    borderRadius: "11px",
+  });
+  document.body.appendChild(fly);
+
+  const tx = toRect.left - fromRect.left;
+  const ty = toRect.top - fromRect.top;
+  const sx = toRect.width / fromRect.width;
+  const sy = toRect.height / fromRect.height;
+
+  fly.animate([
+    { transform: "none", opacity: 1 },
+    { transform: `translate(${tx}px,${ty}px) scale(${sx},${sy}) rotate(4deg)`, opacity: 1, offset: 0.65 },
+    { transform: `translate(${tx}px,${ty}px) scale(${sx},${sy}) rotate(0deg)`, opacity: 0 },
+  ], { duration: 400, easing: "cubic-bezier(.22,1,.36,1)", fill: "forwards" })
+    .onfinish = () => fly.remove();
+}
+
+// ── game over ──────────────────────────────────────────────────────────────────
 
 function renderOver(state) {
   const root = ensureRoot();
@@ -127,9 +250,7 @@ function renderOver(state) {
   });
 }
 
-function gameOver() {
-  // game_over arrives after the final blackjack.state(phase:over); nothing to do.
-}
+function gameOver() {}
 
 // ── timer ──────────────────────────────────────────────────────────────────────
 
@@ -149,6 +270,11 @@ function startTimer(root, deadlineUnix) {
 
 function stopTimer() {
   if (timerRaf !== null) { cancelAnimationFrame(timerRaf); timerRaf = null; }
+}
+
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || "?") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 }
 
 function esc(s) {

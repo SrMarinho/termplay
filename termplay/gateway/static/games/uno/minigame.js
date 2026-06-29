@@ -25,11 +25,16 @@ export function renderTargetPicker(state) {
   for (const gi of state.targets || []) {
     const [name, count] = state.players[gi] || [`P${gi + 1}`, 0];
     const btn = document.createElement("button");
-    btn.className = "btn secondary target-btn";
+    btn.className = "btn primary target-btn";
     btn.textContent = `${name} (${count})`;
     btn.addEventListener("click", () => { ctx.actions.chooseTarget(gi); picker.remove(); });
     picker.appendChild(btn);
   }
+  const skip = document.createElement("button");
+  skip.className = "btn ghost target-btn";
+  skip.textContent = "Não trocar";
+  skip.addEventListener("click", () => { ctx.actions.skipSwap(); picker.remove(); });
+  picker.appendChild(skip);
 }
 
 // ── card 1: tap-the-dot minigame ────────────────────────────────────────────────
