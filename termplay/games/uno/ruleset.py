@@ -21,6 +21,7 @@ class UnoRuleset:
     zero_swap: bool = False           # BR: playing a 0 swaps hands with a chosen player
     one_minigame: bool = False        # BR: playing a 1 triggers the tap-the-dot minigame
     multi_same_number: bool = False   # BR: play multiple cards of the same number in one turn
+    manual_draw: bool = False         # BR: forced draws must be confirmed one card at a time
 
     @classmethod
     def standard(cls) -> UnoRuleset:
@@ -31,7 +32,7 @@ class UnoRuleset:
         # wild4 always legal (wild4_strict stays False)
         return cls(
             stack_draws=True, draw_until_play=True, zero_swap=True,
-            one_minigame=True, multi_same_number=True,
+            one_minigame=True, multi_same_number=True, manual_draw=True,
         )
 
     @classmethod

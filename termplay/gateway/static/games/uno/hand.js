@@ -44,10 +44,13 @@ export function renderHand(state, newCount) {
     els.hand.appendChild(card);
   });
 
-  const inMulti = state.your_turn && state.multi_played?.length > 0;
+  const inMulti   = state.your_turn && state.multi_played?.length > 0;
+  const inDraw    = state.draws_remaining > 0;
   const myName = state.players[state.you] ? state.players[state.you][0] : "você";
   const ini = initials(myName);
-  const turnText = inMulti
+  const turnText = inDraw
+    ? `compre a próxima carta (${state.draws_remaining} restantes)`
+    : inMulti
     ? `${state.multi_played.length} jogadas — continue ou passe`
     : state.may_play_drawn
     ? "jogue a carta comprada ou passe"
@@ -59,7 +62,13 @@ export function renderHand(state, newCount) {
     `<div class="hand-actions"></div>`;
   const actions = els.handinfo.querySelector(".hand-actions");
 
-  if (inMulti) {
+  if (inDraw) {
+    const drawBtn = document.createElement("button");
+    drawBtn.className = "btn primary small";
+    drawBtn.textContent = `Comprar (${state.draws_remaining} restantes)`;
+    drawBtn.addEventListener("click", () => ctx.actions.draw());
+    actions.appendChild(drawBtn);
+  } else if (inMulti) {
     const passBtn = document.createElement("button");
     passBtn.className = "btn ghost small";
     passBtn.textContent = "Confirmar jogada";

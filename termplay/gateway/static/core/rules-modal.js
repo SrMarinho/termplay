@@ -10,6 +10,7 @@ const GAME_RULE_DEFS = {
     { key: "zero_swap",          label: "Carta 0: trocar mão",  desc: "jogar um 0 troca sua mão com a de um jogador" },
     { key: "one_minigame",       label: "Carta 1: minigame",    desc: "jogar um 1 dispara o desafio do ponto; o mais lento compra" },
     { key: "multi_same_number",  label: "Varias do mesmo número", desc: "jogue várias cartas do mesmo número de uma vez (cores diferentes OK)" },
+    { key: "manual_draw",        label: "Compra manual",          desc: "comprar cartas forçadas uma por vez — sinta o sofrimento" },
   ],
   blackjack: [
     { key: "bust_penalty", label: "Punição por estourar", desc: "estourar (passar de 21) desconta 1 ponto do placar" },
@@ -18,8 +19,8 @@ const GAME_RULE_DEFS = {
 
 const GAME_PRESETS = {
   uno: {
-    standard: { draw_then_play: true, initial_card_effect: true, wild4_strict: true, stack_draws: false, draw_until_play: false, zero_swap: false, one_minigame: false, multi_same_number: false },
-    br:       { draw_then_play: false, initial_card_effect: false, wild4_strict: false, stack_draws: true, draw_until_play: true, zero_swap: true, one_minigame: true, multi_same_number: true },
+    standard: { draw_then_play: true, initial_card_effect: true, wild4_strict: true, stack_draws: false, draw_until_play: false, zero_swap: false, one_minigame: false, multi_same_number: false, manual_draw: false },
+    br:       { draw_then_play: false, initial_card_effect: false, wild4_strict: false, stack_draws: true, draw_until_play: true, zero_swap: true, one_minigame: true, multi_same_number: true, manual_draw: true },
   },
   blackjack: {
     standard: { bust_penalty: false },

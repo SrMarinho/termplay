@@ -24,7 +24,7 @@ from termplay.games.uno.ruleset import UnoRuleset
 from termplay.games.uno.state import COLORS, Card, UnoState
 
 UNO_STATE_TAG = "uno.state"
-TURN_TIMEOUT = 30  # seconds per turn
+TURN_TIMEOUT = 10  # seconds per turn
 MINIGAME_TIMEOUT = 15  # seconds for the tap-the-dot round
 
 
@@ -137,20 +137,47 @@ class UnoController:
         await self._broadcast_over()
 
     def _can_stack(self, idx: int) -> bool:
-        """Whether the player holds a card that can stack on the pending draw."""
-        target = self._state.pending_draw_value
-        return any(c.value == target for c in self._state.hands[idx])
+        """Whether the player holds a card that can stack on the pending draw.
+
+        BR stacking rules: +2 can be defended by +2 or +4; +4 only by another +4.
+        """
+        pending = self._state.pending_draw_value
+        hand = self._state.hands[idx]
+        if pending == "draw2":
+            return any(c.value in ("draw2", "wild4") for c in hand)
+        return any(c.value == pending for c in hand)
 
     async def _take_pending(self, player: _Player, idx: int) -> None:
         """Player absorbs the accumulated stacked draw count, then turn passes."""
         count = self._state.pending_draws
-        self._state.draw(idx, count)
         self._state.pending_draws = 0
         self._state.pending_draw_value = ""
-        self._message = f"{player.name} comprou {count} cartas"
         self._log.event("take_pending", player=player.name, count=count)
-        await self._notify_private(player, idx, f"Você comprou {count} cartas")
+
+        if self.rules.manual_draw and count > 1:
+            for k in range(count):
+                self._state.draw(idx, 1)
+                remaining = count - k - 1
+                self._message = (
+                    f"{player.name} está comprando… ({k + 1}/{count})"
+                    if remaining else f"{player.name} comprou {count} cartas"
+                )
+                await self._broadcast(active_idx=idx, draws_remaining=remaining)
+                if remaining:
+                    await self._wait_for_draw_confirm(player)
+        else:
+            self._state.draw(idx, count)
+            self._message = f"{player.name} comprou {count} cartas"
+            await self._notify_private(player, idx, f"Você comprou {count} cartas")
+
         self._state.advance()
+
+    async def _wait_for_draw_confirm(self, player: _Player) -> None:
+        """Wait for any input from the player before dealing the next card."""
+        try:
+            await asyncio.wait_for(player.transport.read_line(), timeout=TURN_TIMEOUT)
+        except (TimeoutError, ConnectionError):
+            pass
 
     async def _notify_left(self, gone: _Player) -> None:
         """Tell remaining players that someone left."""
@@ -546,12 +573,16 @@ class UnoController:
                 card = hand[pos]
                 if not self._state.playable(card):
                     continue
-                if stacking and card.value != self._state.pending_draw_value:
-                    await self._notify_private(
-                        player, idx,
-                        f"Empilhe um {self._state.pending_draw_value} ou compre",
+                if stacking:
+                    pending = self._state.pending_draw_value
+                    allowed = (
+                        card.value in ("draw2", "wild4") if pending == "draw2"
+                        else card.value == pending
                     )
-                    continue
+                    if not allowed:
+                        hint = "Empilhe +2 ou +4" if pending == "draw2" else "Só +4 pode defender +4"
+                        await self._notify_private(player, idx, hint)
+                        continue
                 if (
                     self.rules.wild4_strict
                     and card.value == "wild4"
@@ -623,6 +654,7 @@ class UnoController:
         targets: list[int] | None = None,
         multi_played: list[str] | None = None,
         multi_value: str = "",
+        draws_remaining: int = 0,
     ) -> str:
         st = self._state
         in_multi = multi_played is not None and your_turn
@@ -658,6 +690,7 @@ class UnoController:
             "drawn_card_idx": may_play_drawn if may_play_drawn is not None else -1,
             "multi_played": multi_played or [],
             "multi_value": multi_value,
+            "draws_remaining": draws_remaining,
             "winner": "",
         }
         return json.dumps(data) + "\n"
@@ -672,6 +705,7 @@ class UnoController:
         targets: list[int] | None = None,
         multi_played: list[str] | None = None,
         multi_value: str = "",
+        draws_remaining: int = 0,
     ) -> None:
         prompt = need_color_for is not None or need_target_for is not None
 
@@ -703,6 +737,7 @@ class UnoController:
                         targets=targets if want_target else None,
                         multi_played=multi_played,
                         multi_value=multi_value,
+                        draws_remaining=draws_remaining if i == active_idx else 0,
                     ),
                 )
 
