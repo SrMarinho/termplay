@@ -239,6 +239,13 @@ class UnoController:
         # Brazilian extras: 0 swaps hands, 1 fires the tap-the-dot minigame.
         if self.rules.zero_swap and played.value == "0":
             await self._do_zero_swap(player, idx)
+        # Multi-card play: collect all same-number cards before resolving effects.
+        if (self.rules.multi_same_number
+                and played.value.isdigit()
+                and not played.is_wild
+                and self._state.winner() is None):
+            await self._do_multi_play(player, idx, played)
+            return
         if self.rules.one_minigame and played.value == "1":
             await self._do_one_minigame(idx)
         self._apply_effect(played)
@@ -270,6 +277,83 @@ class UnoController:
         self._log.event(
             "zero_swap", player=player.name, target=self._players[target].name
         )
+
+    async def _do_multi_play(
+        self, player: _Player, idx: int, first_card: Card
+    ) -> None:
+        """Let the player chain multiple cards of the same number value."""
+
+        multi_played: list[str] = [_face(first_card)]
+        last_card = first_card
+        ones_count = 1 if (self.rules.one_minigame and first_card.value == "1") else 0
+
+        while True:
+            same_idxs = [
+                i for i, c in enumerate(self._state.hands[idx])
+                if c.value == first_card.value
+            ]
+            if not same_idxs:
+                break
+            n = len(multi_played)
+            self._message = f"{player.name} jogou {n}× — jogue mais ou passe"
+            self._turn_deadline = time.time() + TURN_TIMEOUT
+            await self._broadcast(
+                active_idx=idx,
+                multi_played=multi_played,
+                multi_value=first_card.value,
+            )
+            pos = await self._get_multi_move(player, idx, same_idxs)
+            if pos is None:
+                break
+            next_card = self._state.play(idx, pos, "")
+            last_card = next_card
+            multi_played.append(_face(next_card))
+            if self.rules.one_minigame and next_card.value == "1":
+                ones_count += 1
+            if self._state.winner() is not None:
+                for _ in range(ones_count):
+                    await self._do_one_minigame(idx)
+                return
+
+        if len(multi_played) > 1:
+            self._message = (
+                f"{player.name} jogou {len(multi_played)} cartas de uma vez!"
+            )
+            self._log.event(
+                "multi_play",
+                player=player.name,
+                cards=multi_played,
+                count=len(multi_played),
+            )
+
+        for _ in range(ones_count):
+            await self._do_one_minigame(idx)
+
+        self._apply_effect(last_card)
+
+    async def _get_multi_move(
+        self, player: _Player, idx: int, valid_idxs: list[int]
+    ) -> int | None:
+        """During multi-play: return a valid card index, or None to stop the chain."""
+        hand = self._state.hands[idx]
+        while True:
+            remaining = self._turn_deadline - time.time()
+            if remaining <= 0:
+                return None
+            try:
+                raw = (
+                    await asyncio.wait_for(
+                        player.transport.read_line(), timeout=remaining
+                    )
+                ).strip().lower()
+            except (TimeoutError, ConnectionError):
+                return None
+            if raw in ("p", "pass", "passar", "q", "quit", "sair"):
+                return None
+            if raw.isdigit():
+                pos = int(raw) - 1
+                if pos in valid_idxs:
+                    return pos
 
     async def _choose_target(self, player: _Player, targets: list[int]) -> int | None:
         """Read a target player number (1-based global) from the player. Returns None to skip."""
@@ -537,9 +621,16 @@ class UnoController:
         may_play_drawn: int | None = None,
         need_target: bool = False,
         targets: list[int] | None = None,
+        multi_played: list[str] | None = None,
+        multi_value: str = "",
     ) -> str:
         st = self._state
-        if may_play_drawn is not None:
+        in_multi = multi_played is not None and your_turn
+        if in_multi:
+            playable = [
+                i for i, c in enumerate(st.hands[idx]) if c.value == multi_value
+            ]
+        elif may_play_drawn is not None:
             playable = [may_play_drawn]
         else:
             playable = [i for i, c in enumerate(st.hands[idx]) if st.playable(c)]
@@ -565,6 +656,8 @@ class UnoController:
             "pending_draws": st.pending_draws,
             "may_play_drawn": may_play_drawn is not None,
             "drawn_card_idx": may_play_drawn if may_play_drawn is not None else -1,
+            "multi_played": multi_played or [],
+            "multi_value": multi_value,
             "winner": "",
         }
         return json.dumps(data) + "\n"
@@ -577,6 +670,8 @@ class UnoController:
         may_play_drawn: int | None = None,
         need_target_for: int | None = None,
         targets: list[int] | None = None,
+        multi_played: list[str] | None = None,
+        multi_value: str = "",
     ) -> None:
         prompt = need_color_for is not None or need_target_for is not None
 
@@ -606,6 +701,8 @@ class UnoController:
                         may_play_drawn=drawn,
                         need_target=want_target,
                         targets=targets if want_target else None,
+                        multi_played=multi_played,
+                        multi_value=multi_value,
                     ),
                 )
 

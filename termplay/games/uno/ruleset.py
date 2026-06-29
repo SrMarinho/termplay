@@ -20,6 +20,7 @@ class UnoRuleset:
     draw_until_play: bool = False     # BR: draw until playable, then must play
     zero_swap: bool = False           # BR: playing a 0 swaps hands with a chosen player
     one_minigame: bool = False        # BR: playing a 1 triggers the tap-the-dot minigame
+    multi_same_number: bool = False   # BR: play multiple cards of the same number in one turn
 
     @classmethod
     def standard(cls) -> UnoRuleset:
@@ -29,7 +30,8 @@ class UnoRuleset:
     def brazilian(cls) -> UnoRuleset:
         # wild4 always legal (wild4_strict stays False)
         return cls(
-            stack_draws=True, draw_until_play=True, zero_swap=True, one_minigame=True
+            stack_draws=True, draw_until_play=True, zero_swap=True,
+            one_minigame=True, multi_same_number=True,
         )
 
     @classmethod

@@ -7,6 +7,7 @@ import { playerColor } from "../../core/colors.js";
 
 export function renderHand(state, newCount) {
   els.hand.replaceChildren();
+  if (!state.multi_played?.length) document.getElementById("uno-multi-played")?.remove();
   const playable = new Set(state.playable || []);
   const total = state.hand.length;
 
@@ -43,9 +44,12 @@ export function renderHand(state, newCount) {
     els.hand.appendChild(card);
   });
 
+  const inMulti = state.your_turn && state.multi_played?.length > 0;
   const myName = state.players[state.you] ? state.players[state.you][0] : "você";
   const ini = initials(myName);
-  const turnText = state.may_play_drawn
+  const turnText = inMulti
+    ? `${state.multi_played.length} jogadas — continue ou passe`
+    : state.may_play_drawn
     ? "jogue a carta comprada ou passe"
     : state.your_turn ? "sua vez" : "aguarde sua vez";
   els.handinfo.innerHTML =
@@ -55,7 +59,13 @@ export function renderHand(state, newCount) {
     `<div class="hand-actions"></div>`;
   const actions = els.handinfo.querySelector(".hand-actions");
 
-  if (state.may_play_drawn) {
+  if (inMulti) {
+    const passBtn = document.createElement("button");
+    passBtn.className = "btn ghost small";
+    passBtn.textContent = "Confirmar jogada";
+    passBtn.addEventListener("click", () => ctx.actions.pass());
+    actions.appendChild(passBtn);
+  } else if (state.may_play_drawn) {
     const passBtn = document.createElement("button");
     passBtn.className = "btn ghost small";
     passBtn.textContent = "Passar";
@@ -68,6 +78,27 @@ export function renderHand(state, newCount) {
     drawBtn.addEventListener("click", () => ctx.actions.draw());
     actions.appendChild(drawBtn);
   }
+
+  if (inMulti) renderMultiPlayed(state.multi_played);
+}
+
+function renderMultiPlayed(faces) {
+  document.getElementById("uno-multi-played")?.remove();
+  const bar = document.createElement("div");
+  bar.id = "uno-multi-played";
+  bar.className = "uno-multi-bar";
+  bar.innerHTML =
+    `<span class="uno-multi-label">Jogadas este turno</span>` +
+    faces.map((f) => `<span class="uno-multi-pip">${_suitIcon(f)}</span>`).join("");
+  els.handinfo.after(bar);
+}
+
+function _suitIcon(face) {
+  const color = face.split(":")[0];
+  const val   = face.split(":")[1] ?? face;
+  const colors = { R: "#d96b63", G: "#5bab6a", B: "#5b8fd9", Y: "#d9b84a", W: "#aaa" };
+  const c = colors[color] || "#aaa";
+  return `<span style="color:${c};font-weight:700">${val}</span>`;
 }
 
 // Initials for the player avatar (e.g. "Otávio Ramires" → "OR").
