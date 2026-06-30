@@ -110,19 +110,10 @@ function _renderHUD3D(state) {
     hud.appendChild(b);
   };
 
-  if (inDraw) {
-    btn(`Comprar (${state.draws_remaining} restantes)`, "primary small", () => ctx.actions.draw());
-  } else if (inDrewUnplayable) {
-    btn("Próxima carta", "primary small", () => ctx.actions.draw());
-    btn("Passar", "ghost small", () => ctx.actions.pass());
-  } else if (inMulti) {
+  if (inMulti) {
     btn(`Terminar turno (${state.multi_played.length}×)`, "secondary small", () => ctx.actions.pass());
-  } else if (state.may_play_drawn) {
+  } else if (inDrewUnplayable || state.may_play_drawn) {
     btn("Passar", "ghost small", () => ctx.actions.pass());
-  } else if (!state.need_color) {
-    btn(pd > 0 ? `Aceitar (+${pd} cartas)` : "Comprar",
-        pd > 0 ? "primary small stack-accept" : "primary small",
-        () => ctx.actions.draw());
   }
 }
 
