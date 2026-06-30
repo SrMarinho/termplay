@@ -49,7 +49,16 @@ if (savedNick) nickInput.value = savedNick;
 nickInput.addEventListener("input", () => localStorage.setItem(NICK_KEY, nickInput.value.trim()));
 
 function nickname() {
-  return (nickInput.value || "Player").trim().slice(0, 16) || "Player";
+  return nickInput.value.trim().slice(0, 16);
+}
+
+function requireNick() {
+  const n = nickname();
+  if (n) return true;
+  nickInput.focus();
+  nickInput.classList.add("field-error");
+  nickInput.addEventListener("input", () => nickInput.classList.remove("field-error"), { once: true });
+  return false;
 }
 
 // ── Gateway ───────────────────────────────────────────────────────────────────
@@ -166,12 +175,14 @@ function onMessage(msg) {
 let selectedGame = "uno";
 
 function hostRoom() {
+  if (!requireNick()) return;
   gateway.send({ action: "create_room", name: nickname(), game: selectedGame });
   hostBtn.disabled    = true;
   hostHint.textContent = "Creating…";
 }
 
 function joinRoom(room) {
+  if (!requireNick()) return;
   gateway.send({ action: "join_room", ip: room.ip, port: room.port, name: nickname() });
 }
 
