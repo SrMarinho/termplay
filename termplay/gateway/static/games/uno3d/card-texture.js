@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-const BG  = { R:"#c0392b", G:"#27ae60", B:"#2980b9", Y:"#f1c40f", W:"#2d2d2d" };
+const BG  = { R:"#e63030", G:"#16c94a", B:"#1a6ed4", Y:"#ffd700", W:"#181818" };
 const FG  = { R:"#fff", G:"#fff", B:"#fff", Y:"#1b1d23", W:"#fff" };
 const SYM = { skip:"⊘", reverse:"↺", draw2:"+2", wild4:"+4", "":"★" };
 
@@ -65,6 +65,7 @@ export function makeCardTexture(face, { playable = false, faded = false } = {}) 
   }
 
   const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   tex.needsUpdate = true;
   return tex;
@@ -103,6 +104,7 @@ export function makeCardBack() {
   c.restore();
 
   const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   tex.needsUpdate = true;
   return tex;

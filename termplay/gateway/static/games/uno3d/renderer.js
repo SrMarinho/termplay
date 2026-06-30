@@ -13,8 +13,8 @@ export function init(canvas, actions) {
   _scene = new THREE.Scene();
   _scene.background = new THREE.Color(0x163316);
 
-  _camera = new THREE.PerspectiveCamera(35, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
-  _camera.position.set(0, 7.5, 9.5);
+  _camera = new THREE.PerspectiveCamera(40, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+  _camera.position.set(0, 8.66, 5.0);
   _camera.lookAt(0, 0, 0);
 
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -26,7 +26,7 @@ export function init(canvas, actions) {
   _renderer.toneMappingExposure = 1.15;
 
   _scene.background = new THREE.Color(0x0a140a);
-  _scene.fog = new THREE.Fog(0x0a140a, 16, 32);
+  _scene.fog = new THREE.Fog(0x0a140a, 14, 28);
 
   // ambiente escuro
   _scene.add(new THREE.AmbientLight(0x335533, 0.25));
@@ -192,7 +192,7 @@ function _drawHand(state) {
 
     const t = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;   // -1..1
     const x = t * (ARC_X / 2);
-    const z = 3.2 + Math.abs(t) * ARC_DEPTH;       // pontas recuam (mais longe)
+    const z = 2.8 + Math.abs(t) * ARC_DEPTH;       // pontas recuam (mais longe)
     const yLift = Math.abs(t) * ARC_LIFT;          // pontas sobem
 
     m.rotation.order = "ZYX";
