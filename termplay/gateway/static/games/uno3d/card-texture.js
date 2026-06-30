@@ -4,10 +4,10 @@ import * as THREE from "three";
 // spine, cream serif numerals — "quiet luxury / carta-preta" aesthetic.
 
 const GRAD = {
-  R: ["#f03030", "#b01010"],
-  G: ["#20cc70", "#107840"],
-  B: ["#2080f0", "#1050b8"],
-  Y: ["#f8c020", "#c07800"],
+  R: ["#b82828", "#780e0e"],
+  G: ["#1a8848", "#0a4c28"],
+  B: ["#1a58c0", "#0a3278"],
+  Y: ["#c07810", "#804a00"],
   W: ["#1e1c10", "#0f0d06"],
 };
 
