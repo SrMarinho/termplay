@@ -44,13 +44,16 @@ export function renderHand(state, newCount) {
     els.hand.appendChild(card);
   });
 
-  const inMulti   = state.your_turn && state.multi_played?.length > 0;
-  const inDraw    = state.draws_remaining > 0;
-  const inStack   = state.your_turn && (state.pending_draws ?? 0) > 0 && !inMulti && !inDraw;
+  const inMulti          = state.your_turn && state.multi_played?.length > 0;
+  const inDraw           = state.draws_remaining > 0;
+  const inStack          = state.your_turn && (state.pending_draws ?? 0) > 0 && !inMulti && !inDraw;
+  const inDrewUnplayable = state.your_turn && state.drew_unplayable === true;
   const myName = state.players[state.you] ? state.players[state.you][0] : "você";
   const ini = initials(myName);
   const turnText = inDraw
     ? `compre a próxima carta (${state.draws_remaining} restantes)`
+    : inDrewUnplayable
+    ? "sem carta jogável — compre a próxima ou passe"
     : inStack
     ? `+${state.pending_draws} acumulados — empilhe +2/+4 ou aceite`
     : inMulti
@@ -71,12 +74,23 @@ export function renderHand(state, newCount) {
     drawBtn.textContent = `Comprar (${state.draws_remaining} restantes)`;
     drawBtn.addEventListener("click", () => ctx.actions.draw());
     actions.appendChild(drawBtn);
-  } else if (inMulti) {
+  } else if (inDrewUnplayable) {
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "btn primary small";
+    nextBtn.textContent = "Próxima carta";
+    nextBtn.addEventListener("click", () => ctx.actions.draw());
+    actions.appendChild(nextBtn);
     const passBtn = document.createElement("button");
     passBtn.className = "btn ghost small";
-    passBtn.textContent = "Confirmar jogada";
+    passBtn.textContent = "Passar";
     passBtn.addEventListener("click", () => ctx.actions.pass());
     actions.appendChild(passBtn);
+  } else if (inMulti) {
+    const stopBtn = document.createElement("button");
+    stopBtn.className = "btn secondary small";
+    stopBtn.textContent = `Terminar turno (${state.multi_played.length}×)`;
+    stopBtn.addEventListener("click", () => ctx.actions.pass());
+    actions.appendChild(stopBtn);
   } else if (state.may_play_drawn) {
     const passBtn = document.createElement("button");
     passBtn.className = "btn ghost small";

@@ -19,7 +19,7 @@ function init(actions) {
   els.badge = document.getElementById("uno-colorbadge");
   els.direction = document.getElementById("uno-direction");
   els.message = document.getElementById("uno-message");
-  els.picker = document.getElementById("uno-color-picker");
+  els.colorModal = document.getElementById("uno-color-modal");
   els.hand = document.getElementById("uno-hand");
   els.handinfo = document.getElementById("uno-handinfo");
   els.handZone = document.querySelector(".hand-zone");
@@ -28,10 +28,11 @@ function init(actions) {
   els.timerBar = document.getElementById("uno-timer-bar");
   els.timerLabel = document.getElementById("uno-timer-label");
 
-  for (const btn of els.picker.querySelectorAll("button")) {
+  for (const btn of els.colorModal.querySelectorAll(".color-btn")) {
     btn.addEventListener("click", () => {
       ctx.actions.chooseColor(btn.dataset.color);
-      els.picker.classList.add("hidden");
+      els.colorModal.classList.remove("open");
+      setTimeout(() => els.colorModal.classList.add("hidden"), 200);
     });
   }
 }
@@ -45,7 +46,8 @@ function reset() {
   els.hand.replaceChildren();
   els.message.textContent = "";
   els.badge.textContent = "";
-  els.picker.classList.add("hidden");
+  els.colorModal?.classList.add("hidden");
+  els.colorModal?.classList.remove("open");
   els.timer.classList.add("hidden");
   if (els.handZone) els.handZone.classList.remove("your-turn");
   els.discardWrap?.querySelector(".pending-draws-badge")?.remove();
@@ -76,7 +78,13 @@ function render(state) {
 
   els.message.textContent = state.message || (state.your_turn ? "Sua vez" : "Aguardando…");
   els.message.classList.toggle("active", !!state.your_turn);
-  els.picker.classList.toggle("hidden", !state.need_color);
+  if (state.need_color) {
+    els.colorModal.classList.remove("hidden");
+    requestAnimationFrame(() => els.colorModal.classList.add("open"));
+  } else {
+    els.colorModal.classList.remove("open");
+    els.colorModal.classList.add("hidden");
+  }
   renderTargetPicker(state);
 
   if (state.deadline) {

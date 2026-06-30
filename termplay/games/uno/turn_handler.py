@@ -22,10 +22,20 @@ async def handle_draw(ctx: UnoContext, player: Player, idx: int) -> None:
             drawn = ctx.state.draw(idx, 1)
             if not drawn:
                 break
-            if ctx.state.playable(drawn[0]):
-                ctx.log.event("draw_until", player=player.name, card=face(drawn[0]))
-                await apply_move(ctx, player, idx, len(ctx.state.hands[idx]) - 1)
+            drawn_idx = len(ctx.state.hands[idx]) - 1
+            drawn_card = drawn[0]
+            ctx.turn_deadline = time.time() + TURN_TIMEOUT
+            ctx.log.event("draw_until", player=player.name, card=face(drawn_card))
+            if ctx.state.playable(drawn_card):
+                ctx.message = f"{player.name} comprou — pode jogar"
+                await broadcast(ctx, active_idx=idx, may_play_drawn=drawn_idx)
+                await get_drawn_decision(ctx, player, idx, drawn_idx)
+                await apply_move(ctx, player, idx, drawn_idx)
                 return
+            else:
+                ctx.message = f"{player.name} comprou — sem carta jogável"
+                await broadcast(ctx, active_idx=idx, drew_unplayable=True)
+                await wait_for_draw_confirm(ctx, player)
         ctx.message = f"{player.name} não conseguiu jogar"
         ctx.state.advance()
         return

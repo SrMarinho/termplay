@@ -359,14 +359,15 @@ a { color: inherit; text-decoration: none; }
 .uno-message.flash { animation: flashpop .3s ease; }
 @keyframes flashpop { 0% { transform: scale(.92); opacity: .4; } 100% { transform: scale(1); opacity: 1; } }
 
-.color-picker {
-  display: flex; gap: 12px; align-items: center; justify-content: center;
-  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
-  padding: 14px; margin: 0 auto; width: fit-content;
-}
-.chip-color { width: 40px; height: 40px; border-radius: 8px; border: 1px solid oklch(100% 0 0/.15); font-family: var(--display); font-weight: 700; cursor: pointer; color: #fff; }
-.chip-color.R { background: var(--R); } .chip-color.G { background: var(--G); }
-.chip-color.B { background: var(--B); } .chip-color.Y { background: var(--Y); color: #1b1d23; }
+/* color modal (replaces old inline .color-picker strip) */
+.uno-color-modal-box { max-width: 320px; width: 90vw; }
+.color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+.color-btn { height: 88px; border-radius: 12px; border: 2px solid oklch(100% 0 0/.2); font-family: var(--display); font-size: 20px; font-weight: 800; cursor: pointer; color: #fff; transition: transform .12s var(--ease), box-shadow .12s; }
+.color-btn:hover, .color-btn:focus-visible { transform: scale(1.04); box-shadow: 0 10px 28px oklch(0% 0 0/.45); outline: none; }
+.color-btn.R { background: var(--R); }
+.color-btn.G { background: var(--G); }
+.color-btn.B { background: var(--B); }
+.color-btn.Y { background: var(--Y); color: #1b1d23; }
 
 /* hand zone */
 .hand-zone { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 22px 26px 26px; transition: box-shadow .2s, border-color .2s; }

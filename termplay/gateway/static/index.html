@@ -201,12 +201,18 @@
         <div id="uno-message" class="uno-message"></div>
       </div>
 
-      <div id="uno-color-picker" class="color-picker hidden">
-        <span class="muted">escolha uma cor:</span>
-        <button data-color="R" class="chip-color R">R</button>
-        <button data-color="G" class="chip-color G">G</button>
-        <button data-color="B" class="chip-color B">B</button>
-        <button data-color="Y" class="chip-color Y">Y</button>
+      <div id="uno-color-modal" class="modal-overlay hidden">
+        <div class="modal framed uno-color-modal-box">
+          <span class="corner tl"></span><span class="corner tr"></span>
+          <span class="corner bl"></span><span class="corner br"></span>
+          <h3 class="modal-title">Escolha uma cor</h3>
+          <div class="color-grid">
+            <button data-color="R" class="color-btn R">Vermelho</button>
+            <button data-color="G" class="color-btn G">Verde</button>
+            <button data-color="B" class="color-btn B">Azul</button>
+            <button data-color="Y" class="color-btn Y">Amarelo</button>
+          </div>
+        </div>
       </div>
 
       <div class="hand-zone framed">

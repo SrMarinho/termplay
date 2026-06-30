@@ -27,10 +27,13 @@ def _payload(
     multi_played: list[str] | None = None,
     multi_value: str = "",
     draws_remaining: int = 0,
+    drew_unplayable: bool = False,
 ) -> str:
     st = ctx.state
     in_multi = multi_played is not None and your_turn
-    if in_multi:
+    if drew_unplayable:
+        playable = []
+    elif in_multi:
         playable = [i for i, c in enumerate(st.hands[idx]) if c.value == multi_value]
     elif may_play_drawn is not None:
         playable = [may_play_drawn]
@@ -65,6 +68,7 @@ def _payload(
         "multi_played": multi_played or [],
         "multi_value": multi_value,
         "draws_remaining": draws_remaining,
+        "drew_unplayable": drew_unplayable,
         "winner": "",
     }
     return json.dumps(data) + "\n"
@@ -81,6 +85,7 @@ async def broadcast(
     multi_played: list[str] | None = None,
     multi_value: str = "",
     draws_remaining: int = 0,
+    drew_unplayable: bool = False,
 ) -> None:
     import asyncio
     prompt = need_color_for is not None or need_target_for is not None
@@ -106,6 +111,7 @@ async def broadcast(
                 multi_played=multi_played,
                 multi_value=multi_value,
                 draws_remaining=draws_remaining if i == active_idx else 0,
+                drew_unplayable=drew_unplayable if i == active_idx else False,
             ))
 
     await asyncio.gather(*(send(i, p) for i, p in enumerate(ctx.players)))
