@@ -31,6 +31,20 @@ function _round(c, x, y, w, h, r) {
   c.closePath();
 }
 
+function _noise(c, W, H, alpha = 0.05) {
+  const tmp = document.createElement("canvas");
+  tmp.width = W; tmp.height = H;
+  const tc = tmp.getContext("2d");
+  const id = tc.createImageData(W, H);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = Math.random() * 255 | 0;
+    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+  }
+  tc.putImageData(id, 0, 0);
+  c.save(); c.globalAlpha = alpha; c.drawImage(tmp, 0, 0); c.restore();
+}
+
 function _bracket(c, x, y, corner, color) {
   const S = 22;
   c.strokeStyle = color; c.lineWidth = 3.5;
@@ -109,6 +123,9 @@ export function makeCardTexture(face, { playable = false, faded = false } = {}) 
   c.fillText(lbl, 0, 0);
   c.restore();
 
+  // Film grain
+  _noise(c, W, H, 0.05);
+
   // Playable glow (gold, matching border-color: var(--gold))
   if (playable) {
     c.strokeStyle = "rgba(212,175,55,0.95)"; c.lineWidth = 10;
@@ -149,6 +166,9 @@ export function makeCardBack() {
   _bracket(c, 14, H - 36, "bl", dc);
   _bracket(c, W - 36, H - 36, "br", dc);
 
+  // Film grain
+  _noise(c, W, H, 0.05);
+
   // "☘ termplay" monogram
   c.save();
   c.shadowColor = "rgba(0,0,0,0.6)"; c.shadowBlur = 8;
@@ -162,6 +182,28 @@ export function makeCardBack() {
 
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+export function makeFeltTexture() {
+  const W = 512, H = 512;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const c = cv.getContext("2d");
+  c.fillStyle = "#0c3b1e"; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 120; i++) {
+    const x = Math.random() * W;
+    c.strokeStyle = `rgba(255,255,255,${Math.random() * 0.025})`;
+    c.lineWidth = Math.random() * 1.5 + 0.5;
+    c.beginPath(); c.moveTo(x, 0); c.lineTo(x + (Math.random() - 0.5) * 30, H); c.stroke();
+  }
+  _noise(c, W, H, 0.14);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(5, 5);
   tex.anisotropy = 8;
   tex.needsUpdate = true;
   return tex;

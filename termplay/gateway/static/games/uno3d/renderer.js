@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { makeCardTexture, makeCardBack } from "./card-texture.js";
+import { makeCardTexture, makeCardBack, makeFeltTexture } from "./card-texture.js";
 
 // ── persistent scene state ────────────────────────────────────────────────────
 let _scene, _camera, _renderer, _raf, _canvas, _raycaster;
@@ -18,8 +18,8 @@ const FAN      = 0.10;  // rad rotation per tip
 // Camera (0,17,10) → hand center (0,0.38,2.2): perpendicular = arcsin(Δy/d)
 // Δy=16.62, Δz=7.8, d≈18.36 → arcsin(0.905) ≈ 1.13 rad
 const TILT     = 1.13;
-const BASE_Y   = 0.38;
-const PLAY_Y   = 0.54;
+const BASE_Y   = 0.65;
+const PLAY_Y   = 0.82;
 
 function _handPos(i, n, isPlayable) {
   const t = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
@@ -228,7 +228,7 @@ export function init(canvas, actions) {
 
   const felt = new THREE.Mesh(
     new THREE.CircleGeometry(9, 64),
-    new THREE.MeshStandardMaterial({ color: 0x0c3b1e, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: makeFeltTexture(), roughness: 0.95 })
   );
   felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true; _scene.add(felt);
 
