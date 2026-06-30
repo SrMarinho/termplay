@@ -11,20 +11,22 @@ let _lastTime   = 0;
 let _anims      = [];    // [{fn(dt)->bool}] — false = remove
 
 // ── hand layout constants (shared by static + anim) ──────────────────────────
-const ARC_X    = (n) => Math.min(n * 0.62, 7.6);
-const ARC_D    = 0.6;   // Z depth at tips
-const ARC_LIFT = 0.4;   // Y lift at tips
-const FAN      = 0.14;  // rad rotation per tip
-const TILT     = Math.PI / 2 - 0.7;  // inclination toward camera
+const ARC_X    = (n) => Math.min(n * 0.55, 6.0);
+const ARC_D    = 0.4;   // Z depth at tips
+const ARC_LIFT = 0.32;  // Y lift at tips
+const FAN      = 0.10;  // rad rotation per tip
+// Camera (0,7,4.5) → hand center (0,0.38,2.2): perpendicular = arcsin(Δy/d)
+// Δy=6.62, Δz=2.3, d≈7.01 → 1.23 rad
+const TILT     = 1.23;
 const BASE_Y   = 0.38;
-const PLAY_Y   = 0.56;
+const PLAY_Y   = 0.54;
 
 function _handPos(i, n, isPlayable) {
   const t = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
   return {
     x:   t * (ARC_X(n) / 2),
     y:   (isPlayable ? PLAY_Y : BASE_Y) + Math.abs(t) * ARC_LIFT,
-    z:   2.8 + Math.abs(t) * ARC_D,
+    z:   2.2 + Math.abs(t) * ARC_D,
     rx:  -TILT,
     rz:  -t * FAN,
     t,
@@ -196,10 +198,10 @@ export function init(canvas, actions) {
 
   _scene = new THREE.Scene();
   _scene.background = new THREE.Color(0x0a140a);
-  _scene.fog = new THREE.Fog(0x0a140a, 14, 28);
+  _scene.fog = new THREE.Fog(0x0a140a, 8, 18);
 
-  _camera = new THREE.PerspectiveCamera(40, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
-  _camera.position.set(0, 8.66, 5.0);
+  _camera = new THREE.PerspectiveCamera(22, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+  _camera.position.set(0, 7, 4.5);
   _camera.lookAt(0, 0, 0);
 
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -312,13 +314,13 @@ function _buildOpponents(state) {
     for (let k = 0; k < n; k++) {
       const m = _backBox();
       m.rotation.x = -Math.PI / 2;
-      m.position.set(x + k * 0.07 - (n * 0.07) / 2, 0.02 + k * 0.003, -3.4);
+      m.position.set(x + k * 0.07 - (n * 0.07) / 2, 0.02 + k * 0.003, -2.0);
       if (active) {
         m.material = new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0x332200, roughness: 0.6 });
       }
       _scene.add(m);
     }
-    _scene.add(_sprite(opp.name + (active ? " ◀" : ""), x, 0.45, -4.0, active ? "#ffe066" : "#ccc"));
+    _scene.add(_sprite(opp.name + (active ? " ◀" : ""), x, 0.45, -2.8, active ? "#ffe066" : "#ccc"));
   });
 }
 

@@ -4,15 +4,15 @@ import * as THREE from "three";
 // spine, cream serif numerals — "quiet luxury / carta-preta" aesthetic.
 
 const GRAD = {
-  R: ["#c44040", "#8a2424"],
-  G: ["#3a9068", "#1f5e40"],
-  B: ["#3c7aaa", "#1e4e70"],
-  Y: ["#c8a040", "#886820"],
+  R: ["#f03030", "#b01010"],
+  G: ["#20cc70", "#107840"],
+  B: ["#2080f0", "#1050b8"],
+  Y: ["#f8c020", "#c07800"],
   W: ["#1e1c10", "#0f0d06"],
 };
 
 const SPINE = {
-  R: "#d96b63", G: "#74b292", B: "#76a6c9", Y: "#e0c170", W: "rgba(212,175,55,0.4)",
+  R: "#ff8080", G: "#80f0b0", B: "#80b8ff", Y: "#ffe880", W: "rgba(212,175,55,0.4)",
 };
 
 const GOLD  = "#D4AF37";
