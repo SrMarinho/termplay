@@ -13,6 +13,20 @@ let _prevState  = null;
 let _lastTime   = 0;
 let _anims      = [];    // [{fn(dt)->bool}] — false = remove
 
+// ── opponent circle helpers ───────────────────────────────────────────────────
+const OPP_R      = 3.0;   // radius from center
+const OPP_CARD_Y = 0.55;  // height when standing
+
+function _oppPos(j, N) {
+  const halfArc = N <= 1 ? 0 : Math.min(2.27, Math.PI / 2 + (N - 2) * 0.28);
+  const a = N <= 1 ? 0 : -halfArc + j * (2 * halfArc / (N - 1));
+  const x = OPP_R * Math.sin(a);
+  const z = -OPP_R * Math.cos(a);
+  // rotation.y so back face points toward camera (camera.z ≈ 10)
+  const ry = Math.atan2(OPP_R * Math.sin(a), -(10 + OPP_R * Math.cos(a)));
+  return { x, z, a, ry };
+}
+
 // ── hand layout constants (shared by static + anim) ──────────────────────────
 const ARC_X    = (n) => Math.min(n * 0.55, 6.0);
 const ARC_D    = 0.4;   // Z depth at tips
@@ -167,14 +181,12 @@ function _diffAndAnimate(prev, next) {
   const opps = players
     .map((p, i) => ({ idx: i, count: p[1] }))
     .filter(o => o.idx !== next.you);
-  const spread = Math.min((opps.length - 1) * 1.8, 7);
+  const N = opps.length;
 
   opps.forEach((opp, j) => {
-    const x = opps.length > 1
-      ? -spread / 2 + j * (spread / Math.max(opps.length - 1, 1))
-      : 0;
-    const oppPos  = [x, 0.06, -2.0];
-    const oppRot  = [-Math.PI / 2, 0, 0];
+    const { x, z, ry } = _oppPos(j, N);
+    const oppPos  = [x, OPP_CARD_Y, z];
+    const oppRot  = [-0.12, ry, 0];
     const prevCount = prev.players?.[opp.idx]?.[1] ?? 0;
     const gained    = opp.count - prevCount;
     const lost      = prevCount - opp.count;
@@ -341,20 +353,26 @@ function _buildOpponents(state) {
   const opps = players
     .map((p, i) => ({ name: p[0], cards: p[1], idx: i }))
     .filter(p => p.idx !== state.you);
-  const spread = Math.min((opps.length - 1) * 1.8, 7);
+  const N = opps.length;
   opps.forEach((opp, j) => {
-    const x = opps.length > 1
-      ? -spread / 2 + j * (spread / Math.max(opps.length - 1, 1))
-      : 0;
+    const { x, z, a, ry } = _oppPos(j, N);
     const n      = Math.min(opp.cards, 12);
     const active = opp.idx === state.current;
+    // tangent direction (perpendicular to radius) for fan spread
+    const tx = Math.cos(a), tz = Math.sin(a);
+    const SPREAD = Math.min(n * 0.13, 2.0);
     for (let k = 0; k < n; k++) {
+      const t = n > 1 ? (k / (n - 1)) * 2 - 1 : 0;
       const m = _backBox();
-      m.rotation.x = -Math.PI / 2;
-      m.position.set(x + k * 0.07 - (n * 0.07) / 2, 0.02 + k * 0.003, -2.0);
+      m.rotation.order = "YZX";
+      m.rotation.y = ry;
+      m.rotation.z = -t * 0.05;   // slight fan
+      m.rotation.x = -0.12;       // slight tilt toward center
+      m.position.set(x + t * (SPREAD / 2) * tx, OPP_CARD_Y, z + t * (SPREAD / 2) * tz);
+      m.renderOrder = k;
       _scene.add(m);
     }
-    _scene.add(_sprite(opp.name + (active ? " ◀" : ""), x, 0.45, -2.8, active ? "#ffe066" : "#ccc"));
+    _scene.add(_sprite(opp.name + (active ? " ◀" : ""), x, 1.35, z, active ? "#ffe066" : "#ccc"));
   });
 }
 
