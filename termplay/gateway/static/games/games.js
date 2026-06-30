@@ -4,3 +4,4 @@ import "./uno/index.js";
 import "./velha/index.js";
 import "./hangman/index.js";
 import "./blackjack/index.js";
+import "./truco/index.js";

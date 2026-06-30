@@ -112,6 +112,7 @@ const actions = {
   hit:          ()    => sendInput("h"),
   stand:        ()    => sendInput("s"),
   quit:         ()    => sendInput("q"),
+  send:         (t)   => sendInput(t),
   backToLobby:  ()    => { resetActiveView(); show("lobby"); },
 };
 

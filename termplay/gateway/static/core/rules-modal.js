@@ -15,6 +15,9 @@ const GAME_RULE_DEFS = {
   blackjack: [
     { key: "bust_penalty", label: "Punição por estourar", desc: "estourar (passar de 21) desconta 1 ponto do placar" },
   ],
+  truco: [
+    { key: "mao_de_onze", label: "Mão de onze", desc: "time com 11 pts decide jogar ou correr antes de ver as cartas" },
+  ],
 };
 
 const GAME_PRESETS = {
@@ -24,6 +27,9 @@ const GAME_PRESETS = {
   },
   blackjack: {
     standard: { bust_penalty: false },
+  },
+  truco: {
+    standard: { mao_de_onze: true },
   },
 };
 

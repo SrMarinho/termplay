@@ -15,6 +15,7 @@ import termplay.games.blackjack.plugin  # noqa: F401
 import termplay.games.hangman.plugin  # noqa: F401
 import termplay.games.tictactoe.plugin  # noqa: F401
 import termplay.games.uno.plugin  # noqa: F401
+import termplay.games.truco.plugin  # noqa: F401
 from termplay.engine.registry import GameRegistry
 from termplay.engine.server import TermPlayServer
 

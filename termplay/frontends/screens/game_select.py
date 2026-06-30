@@ -13,7 +13,8 @@ from textual.widgets import DataTable, Header, Input
 import termplay.games.blackjack.plugin
 import termplay.games.hangman.plugin
 import termplay.games.tictactoe.plugin
-import termplay.games.uno.plugin  # noqa: F401
+import termplay.games.uno.plugin    # noqa: F401
+import termplay.games.truco.plugin  # noqa: F401
 from termplay.engine.registry import GameRegistry
 
 

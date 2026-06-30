@@ -13,7 +13,8 @@ from textual.binding import Binding
 import termplay.games.blackjack.plugin  # registra Blackjack no GameRegistry
 import termplay.games.hangman.plugin  # registra Forca
 import termplay.games.tictactoe.plugin  # registra Velha
-import termplay.games.uno.plugin  # noqa: F401  # registra Uno
+import termplay.games.uno.plugin    # noqa: F401  # registra Uno
+import termplay.games.truco.plugin  # noqa: F401  # registra Truco
 from termplay.frontends.net import ServerConnection
 from termplay.frontends.screens.home import HomeScreen
 
