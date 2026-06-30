@@ -52,6 +52,7 @@ function _start3D(actions) {
   const canvas = document.getElementById("uno-3d-canvas");
   canvas?.classList.remove("hidden");
   document.getElementById("uno-3d-hud")?.classList.remove("hidden");
+  document.getElementById("uno-3d-info")?.classList.remove("hidden");
   Uno3DRenderer.init(canvas, actions);
 }
 
@@ -64,37 +65,41 @@ function _doToggle3D() {
   if (_use3D) {
     canvas?.classList.remove("hidden");
     hud?.classList.remove("hidden");
+    document.getElementById("uno-3d-info")?.classList.remove("hidden");
     Uno3DRenderer.init(canvas, ctx.actions);
   } else {
     Uno3DRenderer.reset();
     canvas?.classList.add("hidden");
     hud?.classList.add("hidden");
+    document.getElementById("uno-3d-info")?.classList.add("hidden");
   }
   if (_lastState) render(_lastState);
 }
 
 function _renderHUD3D(state) {
-  const hud = document.getElementById("uno-3d-hud");
+  const hud  = document.getElementById("uno-3d-hud");
+  const info = document.getElementById("uno-3d-info");
   if (!hud) return;
   hud.replaceChildren();
+  if (info) info.replaceChildren();
 
   const inMulti          = state.your_turn && state.multi_played?.length > 0;
   const inDraw           = state.draws_remaining > 0;
   const inStack          = state.your_turn && (state.pending_draws ?? 0) > 0 && !inMulti && !inDraw;
   const inDrewUnplayable = state.your_turn && state.drew_unplayable === true;
 
-  const info = document.createElement("div");
-  info.className = "hud-info";
+  const infoEl = document.createElement("div");
+  infoEl.className = "hud-info";
   const hand = state.hand?.length ?? 0;
   const pd   = state.pending_draws ?? 0;
-  info.textContent = `${hand} cartas · ` + (
+  infoEl.textContent = `${hand} cartas · ` + (
     inDrewUnplayable ? "sem carta jogável — próxima ou passe"
     : inStack   ? `+${pd} acumulados — empilhe ou aceite`
     : inMulti   ? `${state.multi_played.length}× jogadas — continue ou pare`
     : state.may_play_drawn ? "jogue a carta comprada ou passe"
     : state.your_turn ? "sua vez" : "aguardando…"
   );
-  hud.appendChild(info);
+  if (info) info.appendChild(infoEl); else hud.appendChild(infoEl);
 
   if (!state.your_turn) return;
 
@@ -142,6 +147,7 @@ function reset() {
   Uno3DRenderer.reset();
   document.getElementById("uno-3d-canvas")?.classList.add("hidden");
   document.getElementById("uno-3d-hud")?.classList.add("hidden");
+  document.getElementById("uno-3d-info")?.classList.add("hidden");
   _toggleBtn?.classList.add("hidden");
   _lastState = null;
 }

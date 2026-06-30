@@ -363,6 +363,11 @@ a { color: inherit; text-decoration: none; }
 /* ── UNO 3D canvas + HUD ────────────────────────────────────────────────────── */
 .uno-3d-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: block; background: #0a140a; }
 .uno-3d-canvas.hidden { display: none; }
+.uno-3d-info {
+  position: absolute; top: 52px; left: 0; right: 0; z-index: 10;
+  display: flex; justify-content: center; pointer-events: none;
+}
+.uno-3d-info.hidden { display: none; }
 .uno-3d-hud {
   position: absolute; bottom: 24px; left: 0; right: 0; z-index: 10;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
