@@ -27,7 +27,7 @@ export function renderOpponents(state) {
   const changes = [];
   if (ctx.prev) {
     state.players.forEach(([, count], i) => {
-      if (i === state.you) return;
+      if (i === state.you) return; // self animations handled by playCard()
       const prevCount = ctx.prev.players[i]?.[1];
       if (prevCount === undefined) return;
       if (count < prevCount) changes.push({ idx: i, type: "play" });
@@ -36,21 +36,24 @@ export function renderOpponents(state) {
   }
 
   // Rebuild DOM — a row of horizontal seats with avatar + count + pip stack.
+  // Self is included (with a "você" badge) so the turn order has no gaps.
   els.opponents.replaceChildren();
   state.players.forEach(([name, count], i) => {
-    if (i === state.you) return;
+    const isSelf = i === state.you;
+    const displayCount = isSelf ? state.hand.length : count;
     const seat = document.createElement("div");
-    seat.className = "opponent";
+    seat.className = "opponent" + (isSelf ? " you-seat" : "");
     seat.dataset.idx = i;
     if (i === state.current) seat.classList.add("active");
 
     const isBot = String(name).startsWith("Bot");
-    const pips = Array.from({ length: Math.min(count, 7) }, () => `<span class="pip"></span>`).join("");
+    const pips = Array.from({ length: Math.min(displayCount, 7) }, () => `<span class="pip"></span>`).join("");
+    const badges = (isSelf ? `<span class="badge you">você</span>` : "")
+                 + (isBot ? `<span class="badge bot">bot</span>` : "");
     seat.innerHTML =
       `<span class="avatar sm" style="--pc:${playerColor(i)}">${esc(initials(name))}</span>` +
-      `<div class="opp-body"><span class="opp-name">${esc(name)}` +
-      (isBot ? ` <span class="badge bot">bot</span>` : "") + `</span>` +
-      `<span class="opp-count">${count} cartas</span></div>` +
+      `<div class="opp-body"><span class="opp-name">${esc(name)}${badges ? " " + badges : ""}</span>` +
+      `<span class="opp-count">${displayCount} cartas</span></div>` +
       `<div class="opp-pips">${pips}</div>`;
 
     els.opponents.appendChild(seat);

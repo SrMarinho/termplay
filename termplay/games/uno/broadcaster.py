@@ -34,6 +34,12 @@ def _payload(
         playable = [i for i, c in enumerate(st.hands[idx]) if c.value == multi_value]
     elif may_play_drawn is not None:
         playable = [may_play_drawn]
+    elif st.pending_draws > 0:
+        pend = st.pending_draw_value
+        if pend == "draw2":
+            playable = [i for i, c in enumerate(st.hands[idx]) if c.value in ("draw2", "wild4")]
+        else:
+            playable = [i for i, c in enumerate(st.hands[idx]) if c.value == pend]
     else:
         playable = [i for i, c in enumerate(st.hands[idx]) if st.playable(c)]
     data = {

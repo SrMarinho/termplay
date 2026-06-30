@@ -9,7 +9,7 @@ import time
 
 from termplay.games.uno.broadcaster import broadcast, broadcast_minigame, notify_private
 from termplay.games.uno.context import MINIGAME_TIMEOUT, TURN_TIMEOUT, UnoContext, Player, face
-from termplay.games.uno.effects import apply_effect
+from termplay.games.uno.effects import apply_effect, apply_multi_effect
 from termplay.games.uno.input_reader import choose_target, get_multi_move
 from termplay.games.uno.state import Card
 
@@ -35,7 +35,6 @@ async def do_zero_swap(ctx: UnoContext, player: Player, idx: int) -> None:
 
 async def do_multi_play(ctx: UnoContext, player: Player, idx: int, first_card: Card) -> None:
     multi_played: list[str] = [face(first_card)]
-    last_card = first_card
     ones_count = 1 if (ctx.rules.one_minigame and first_card.value == "1") else 0
 
     while True:
@@ -49,7 +48,6 @@ async def do_multi_play(ctx: UnoContext, player: Player, idx: int, first_card: C
         if pos is None:
             break
         next_card = ctx.state.play(idx, pos, "")
-        last_card = next_card
         multi_played.append(face(next_card))
         if ctx.rules.one_minigame and next_card.value == "1":
             ones_count += 1
@@ -59,13 +57,13 @@ async def do_multi_play(ctx: UnoContext, player: Player, idx: int, first_card: C
             return
 
     if len(multi_played) > 1:
-        ctx.message = f"{player.name} jogou {len(multi_played)} cartas de uma vez!"
+        ctx.message = f"{player.name} jogou {len(multi_played)}× {first_card.value}!"
         ctx.log.event("multi_play", player=player.name, cards=multi_played, count=len(multi_played))
 
     for _ in range(ones_count):
         await do_one_minigame(ctx, idx)
 
-    apply_effect(ctx, last_card)
+    apply_multi_effect(ctx, first_card, len(multi_played))
 
 
 async def do_one_minigame(ctx: UnoContext, idx: int) -> None:

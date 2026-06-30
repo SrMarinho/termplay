@@ -99,7 +99,6 @@ async def apply_move(ctx: UnoContext, player: Player, idx: int, move: int) -> No
     if ctx.rules.zero_swap and played.value == "0":
         await do_zero_swap(ctx, player, idx)
     if (ctx.rules.multi_same_number
-            and played.value.isdigit()
             and not played.is_wild
             and ctx.state.winner() is None):
         await do_multi_play(ctx, player, idx, played)

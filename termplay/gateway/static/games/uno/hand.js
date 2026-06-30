@@ -46,12 +46,15 @@ export function renderHand(state, newCount) {
 
   const inMulti   = state.your_turn && state.multi_played?.length > 0;
   const inDraw    = state.draws_remaining > 0;
+  const inStack   = state.your_turn && (state.pending_draws ?? 0) > 0 && !inMulti && !inDraw;
   const myName = state.players[state.you] ? state.players[state.you][0] : "você";
   const ini = initials(myName);
   const turnText = inDraw
     ? `compre a próxima carta (${state.draws_remaining} restantes)`
+    : inStack
+    ? `+${state.pending_draws} acumulados — empilhe +2/+4 ou aceite`
     : inMulti
-    ? `${state.multi_played.length} jogadas — continue ou passe`
+    ? `${state.multi_played.length}× jogadas — continue ou passe`
     : state.may_play_drawn
     ? "jogue a carta comprada ou passe"
     : state.your_turn ? "sua vez" : "aguarde sua vez";
@@ -83,7 +86,9 @@ export function renderHand(state, newCount) {
   } else if (state.your_turn && !state.need_color) {
     const drawBtn = document.createElement("button");
     drawBtn.className = "btn primary small";
-    drawBtn.textContent = "Comprar";
+    const pd = state.pending_draws ?? 0;
+    drawBtn.textContent = pd > 0 ? `Aceitar (+${pd} cartas)` : "Comprar";
+    if (pd > 0) drawBtn.classList.add("stack-accept");
     drawBtn.addEventListener("click", () => ctx.actions.draw());
     actions.appendChild(drawBtn);
   }
@@ -96,9 +101,13 @@ function renderMultiPlayed(faces) {
   const bar = document.createElement("div");
   bar.id = "uno-multi-played";
   bar.className = "uno-multi-bar";
+  const val = faces[0]?.split(":")[1] ?? "";
   bar.innerHTML =
-    `<span class="uno-multi-label">Jogadas este turno</span>` +
-    faces.map((f) => `<span class="uno-multi-pip">${_suitIcon(f)}</span>`).join("");
+    `<span class="uno-multi-count">${faces.length}×</span>` +
+    `<span class="uno-multi-label">${val}</span>` +
+    `<span class="uno-multi-pips">` +
+    faces.map((f) => `<span class="uno-multi-pip">${_suitIcon(f)}</span>`).join("") +
+    `</span>`;
   els.handinfo.after(bar);
 }
 
