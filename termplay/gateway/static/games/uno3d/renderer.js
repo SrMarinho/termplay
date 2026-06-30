@@ -15,18 +15,19 @@ const ARC_X    = (n) => Math.min(n * 0.55, 6.0);
 const ARC_D    = 0.4;   // Z depth at tips
 const ARC_LIFT = 0.32;  // Y lift at tips
 const FAN      = 0.10;  // rad rotation per tip
-// Camera (0,17,10) → hand center (0,0.38,2.2): perpendicular = arcsin(Δy/d)
-// Δy=16.62, Δz=7.8, d≈18.36 → arcsin(0.905) ≈ 1.13 rad
-const TILT     = 1.13;
+// Camera (0,17,10) → hand center (0,0.65,3.2): perpendicular = arcsin(Δy/d)
+// Δy=16.35, Δz=6.8, d≈17.7 → arcsin(0.924) ≈ 1.17 rad
+const TILT     = 1.17;
 const BASE_Y   = 0.65;
 const PLAY_Y   = 0.82;
+const HAND_Z   = 3.2;   // base Z for hand (closer to camera)
 
 function _handPos(i, n, isPlayable) {
   const t = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
   return {
     x:   t * (ARC_X(n) / 2),
     y:   (isPlayable ? PLAY_Y : BASE_Y) + Math.abs(t) * ARC_LIFT,
-    z:   2.2 + Math.abs(t) * ARC_D,
+    z:   HAND_Z + Math.abs(t) * ARC_D,
     rx:  -TILT,
     rz:  -t * FAN,
     t,
@@ -254,11 +255,12 @@ export function init(canvas, actions) {
 }
 
 export function reset() {
+  if (_canvas) _canvas.classList.add("hidden");  // hide before WebGL dispose to avoid white flash
   if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
   _canvas?.removeEventListener("click",     _onClick);
   _canvas?.removeEventListener("mousemove", _onHover);
   _handCards = []; _drawMesh = null; _anims = []; _prevState = null;
-  _renderer?.dispose(); _renderer = null; _scene = null;
+  _renderer?.dispose(); _renderer = null; _scene = null; _canvas = null;
 }
 
 export function render(state) {
@@ -291,11 +293,12 @@ function _buildDiscard(state) {
 }
 
 function _buildDeck() {
-  for (let k = 0; k < 3; k++) {
+  const STACK = 14;
+  for (let k = 0; k < STACK; k++) {
     const m = _backBox();
     m.rotation.x = -Math.PI / 2;
-    m.position.set(-0.85, 0.02 + k * 0.006, 0.2);
-    if (k === 2) { m.userData.isDeck = true; _drawMesh = m; }
+    m.position.set(-0.85, 0.02 + k * 0.012, 0.2);
+    if (k === STACK - 1) { m.userData.isDeck = true; _drawMesh = m; }
     _scene.add(m);
   }
 }
