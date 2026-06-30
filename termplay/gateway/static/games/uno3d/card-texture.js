@@ -5,9 +5,9 @@ import * as THREE from "three";
 
 const GRAD = {
   R: ["#b82828", "#780e0e"],
-  G: ["#1a8848", "#0a4c28"],
+  G: ["#3a7858", "#245038"],
   B: ["#1a58c0", "#0a3278"],
-  Y: ["#c07810", "#804a00"],
+  Y: ["#c09030", "#886010"],
   W: ["#1e1c10", "#0f0d06"],
 };
 
@@ -126,11 +126,18 @@ export function makeCardTexture(face, { playable = false, faded = false } = {}) 
   // Film grain
   _noise(c, W, H, 0.05);
 
-  // Playable glow (gold, matching border-color: var(--gold))
+  // Playable glow — white glow with blur layers
   if (playable) {
-    c.strokeStyle = "rgba(212,175,55,0.95)"; c.lineWidth = 10;
-    _round(c, 6, 6, W - 12, H - 12, 15);
-    c.stroke();
+    for (const [blur, alpha, lw] of [[18, 0.35, 14], [8, 0.6, 8], [0, 0.95, 4]]) {
+      c.save();
+      c.shadowColor = "rgba(255,255,255,0.9)";
+      c.shadowBlur = blur;
+      c.strokeStyle = `rgba(255,255,255,${alpha})`;
+      c.lineWidth = lw;
+      _round(c, 5, 5, W - 10, H - 10, 17);
+      c.stroke();
+      c.restore();
+    }
   }
 
   const tex = new THREE.CanvasTexture(cv);

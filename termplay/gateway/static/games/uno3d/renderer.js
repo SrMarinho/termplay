@@ -359,10 +359,10 @@ function _buildDirectionLabel(state) {
 
 function _box(face, opts = {}) {
   const geo  = new THREE.BoxGeometry(0.66, 0.96, 0.018);
-  const edge = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, roughness: 0.6 });
+  const edge = new THREE.MeshStandardMaterial({ color: 0x1a1510, roughness: 0.7 });
   const mats = [edge, edge, edge, edge,
-    new THREE.MeshStandardMaterial({ map: makeCardTexture(face, opts), roughness: 0.55, metalness: 0.05 }),
-    new THREE.MeshStandardMaterial({ map: makeCardBack(), roughness: 0.55 }),
+    new THREE.MeshStandardMaterial({ map: makeCardTexture(face, opts), roughness: 0.55, metalness: 0.05, transparent: true, alphaTest: 0.5 }),
+    new THREE.MeshStandardMaterial({ map: makeCardBack(), roughness: 0.55, transparent: true, alphaTest: 0.5 }),
   ];
   const m = new THREE.Mesh(geo, mats);
   m.castShadow = true; m.userData.dyn = true;
@@ -371,7 +371,7 @@ function _box(face, opts = {}) {
 
 function _backBox() {
   const geo = new THREE.BoxGeometry(0.66, 0.96, 0.018);
-  const m   = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: makeCardBack(), roughness: 0.55 }));
+  const m   = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: makeCardBack(), roughness: 0.55, transparent: true, alphaTest: 0.5 }));
   m.castShadow = true; m.userData.dyn = true;
   return m;
 }
