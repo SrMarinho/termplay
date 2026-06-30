@@ -1,8 +1,25 @@
 import * as THREE from "three";
 
-const BG  = { R:"#e63030", G:"#16c94a", B:"#1a6ed4", Y:"#ffd700", W:"#181818" };
-const FG  = { R:"#fff", G:"#fff", B:"#fff", Y:"#1b1d23", W:"#fff" };
-const SYM = { skip:"⊘", reverse:"↺", draw2:"+2", wild4:"+4", "":"★" };
+// Matches 2D card design: dark gradient, gold hairline, Art-Deco corners,
+// spine, cream serif numerals — "quiet luxury / carta-preta" aesthetic.
+
+const GRAD = {
+  R: ["#c44040", "#8a2424"],
+  G: ["#3a9068", "#1f5e40"],
+  B: ["#3c7aaa", "#1e4e70"],
+  Y: ["#c8a040", "#886820"],
+  W: ["#1e1c10", "#0f0d06"],
+};
+
+const SPINE = {
+  R: "#d96b63", G: "#74b292", B: "#76a6c9", Y: "#e0c170", W: "rgba(212,175,55,0.4)",
+};
+
+const GOLD  = "#D4AF37";
+const CREAM = "#F4ECDC";
+
+// Matches 2D VALUE_GLYPH
+const SYM = { skip:"⊘", reverse:"⇄", draw2:"+2", wild:"★", wild4:"+4", "":"★" };
 
 function _round(c, x, y, w, h, r) {
   c.beginPath();
@@ -14,6 +31,26 @@ function _round(c, x, y, w, h, r) {
   c.closePath();
 }
 
+function _bracket(c, x, y, corner, color) {
+  const S = 22;
+  c.strokeStyle = color; c.lineWidth = 3.5;
+  c.beginPath();
+  if (corner === "tr") {
+    c.moveTo(x, y); c.lineTo(x + S, y);
+    c.moveTo(x + S, y); c.lineTo(x + S, y + S);
+  } else if (corner === "bl") {
+    c.moveTo(x, y); c.lineTo(x, y + S);
+    c.moveTo(x, y + S); c.lineTo(x + S, y + S);
+  } else if (corner === "tl") {
+    c.moveTo(x + S, y); c.lineTo(x, y);
+    c.moveTo(x, y); c.lineTo(x, y + S);
+  } else { // br
+    c.moveTo(x, y); c.lineTo(x + S, y);
+    c.moveTo(x, y); c.lineTo(x, y + S);
+  }
+  c.stroke();
+}
+
 export function makeCardTexture(face, { playable = false, faded = false } = {}) {
   const [ck, val] = face.includes(":") ? face.split(":") : ["W", face];
   const W = 256, H = 384;
@@ -21,47 +58,62 @@ export function makeCardTexture(face, { playable = false, faded = false } = {}) 
   cv.width = W; cv.height = H;
   const c = cv.getContext("2d");
 
-  // fundo cor
-  const base = faded ? "#3a3a3a" : (BG[ck] ?? "#2d2d2d");
-  c.fillStyle = base;
-  _round(c, 0, 0, W, H, 28); c.fill();
+  // Background — diagonal gradient matching CSS linear-gradient(160deg,…)
+  const [c1, c2] = faded ? ["#3a3a3a", "#1e1e1e"] : (GRAD[ck] ?? GRAD.W);
+  const grd = c.createLinearGradient(0, 0, W * 0.65, H);
+  grd.addColorStop(0, c1);
+  grd.addColorStop(1, c2);
+  c.fillStyle = grd;
+  _round(c, 0, 0, W, H, 20);
+  c.fill();
 
-  // moldura branca externa
-  c.strokeStyle = "#fdfdfa"; c.lineWidth = 16;
-  _round(c, 12, 12, W - 24, H - 24, 22); c.stroke();
+  // Hairline border
+  const borderClr = ck === "W"
+    ? "rgba(212,175,55,0.55)"
+    : "rgba(244,236,220,0.22)";
+  c.strokeStyle = borderClr; c.lineWidth = 4;
+  _round(c, 4, 4, W - 8, H - 8, 17);
+  c.stroke();
 
-  // oval branca central (marca UNO)
+  // Art-Deco corners (TR + BL like 2D card face)
+  const decoClr = ck === "W" ? "rgba(212,175,55,0.7)" : "rgba(244,236,220,0.55)";
+  _bracket(c, W - 40, 14, "tr", decoClr);
+  _bracket(c, 14, H - 36, "bl", decoClr);
+
+  // Spine (thin left bar, like .card-spine in CSS)
+  if (ck !== "W") {
+    c.fillStyle = (SPINE[ck] ?? CREAM) + "70";
+    _round(c, 18, H * 0.22, 5, H * 0.56, 3);
+    c.fill();
+  }
+
+  // Center value
+  const lbl = SYM[val] ?? val ?? "★";
   c.save();
-  c.translate(W / 2, H / 2); c.rotate(-Math.PI / 4);
-  c.fillStyle = "#fdfdfa";
-  c.beginPath(); c.ellipse(0, 0, W * 0.34, H * 0.42, 0, 0, Math.PI * 2); c.fill();
-  c.restore();
-
-  // valor central dentro do oval
-  const lbl = SYM[val] ?? val ?? "W";
-  c.fillStyle = faded ? "#777" : (BG[ck] ?? "#222");
-  c.font = `900 ${lbl.length > 2 ? 88 : 150}px Georgia, serif`;
+  c.shadowColor = "rgba(0,0,0,0.55)"; c.shadowBlur = 10;
+  c.fillStyle = ck === "W" ? GOLD : CREAM;
+  const fontSize = lbl.length > 2 ? 96 : 162;
+  c.font = `700 ${fontSize}px Georgia, serif`;
   c.textAlign = "center"; c.textBaseline = "middle";
   c.fillText(lbl, W / 2, H / 2);
+  c.restore();
 
-  // cantos
-  c.fillStyle = "#fff";
-  c.font = "900 40px Georgia, serif";
+  // Corner indices (top-left + bottom-right, matching .card-ix)
+  c.fillStyle = ck === "W" ? GOLD : CREAM;
+  c.font = "700 46px Georgia, serif";
   c.textAlign = "left"; c.textBaseline = "top";
-  c.fillText(lbl, 22, 18);
-  c.save(); c.translate(W - 22, H - 18); c.rotate(Math.PI);
-  c.fillText(lbl, 0, 0); c.restore();
+  c.fillText(lbl, 30, 24);
+  c.save();
+  c.translate(W - 30, H - 24); c.rotate(Math.PI);
+  c.textBaseline = "top"; c.textAlign = "left";
+  c.fillText(lbl, 0, 0);
+  c.restore();
 
-  // brilho diagonal sutil (gloss)
-  const g = c.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, "rgba(255,255,255,0.10)");
-  g.addColorStop(0.5, "rgba(255,255,255,0)");
-  c.fillStyle = g; _round(c, 0, 0, W, H, 28); c.fill();
-
-  // glow jogável
+  // Playable glow (gold, matching border-color: var(--gold))
   if (playable) {
-    c.strokeStyle = "#ffe066"; c.lineWidth = 10;
-    _round(c, 6, 6, W - 12, H - 12, 24); c.stroke();
+    c.strokeStyle = "rgba(212,175,55,0.95)"; c.lineWidth = 10;
+    _round(c, 6, 6, W - 12, H - 12, 15);
+    c.stroke();
   }
 
   const tex = new THREE.CanvasTexture(cv);
@@ -77,30 +129,35 @@ export function makeCardBack() {
   cv.width = W; cv.height = H;
   const c = cv.getContext("2d");
 
-  // fundo azul
-  c.fillStyle = "#16205c";
-  _round(c, 0, 0, W, H, 28); c.fill();
+  // Near-black surface (matches .card-back / .card.W)
+  const grd = c.createLinearGradient(0, 0, W * 0.65, H);
+  grd.addColorStop(0, "#1e1c0f");
+  grd.addColorStop(1, "#0f0d06");
+  c.fillStyle = grd;
+  _round(c, 0, 0, W, H, 20);
+  c.fill();
 
-  // moldura branca
-  c.strokeStyle = "#fdfdfa"; c.lineWidth = 14;
-  _round(c, 12, 12, W - 24, H - 24, 22); c.stroke();
+  // Gold border
+  c.strokeStyle = "rgba(212,175,55,0.55)"; c.lineWidth = 4;
+  _round(c, 4, 4, W - 8, H - 8, 17);
+  c.stroke();
 
-  // oval vermelha diagonal
+  // All 4 Art-Deco corners (matches createCardBack with all 4 deco spans)
+  const dc = "rgba(212,175,55,0.7)";
+  _bracket(c, 14, 14, "tl", dc);
+  _bracket(c, W - 36, 14, "tr", dc);
+  _bracket(c, 14, H - 36, "bl", dc);
+  _bracket(c, W - 36, H - 36, "br", dc);
+
+  // "☘ termplay" monogram
   c.save();
-  c.translate(W / 2, H / 2); c.rotate(-Math.PI / 4);
-  c.fillStyle = "#c0392b";
-  c.beginPath(); c.ellipse(0, 0, W * 0.36, H * 0.44, 0, 0, Math.PI * 2); c.fill();
-  c.restore();
-
-  // marca UNO
-  c.save();
-  c.translate(W / 2, H / 2); c.rotate(-Math.PI / 8);
-  c.fillStyle = "#f1c40f";
-  c.font = "900 72px Georgia, serif";
+  c.shadowColor = "rgba(0,0,0,0.6)"; c.shadowBlur = 8;
+  c.fillStyle = GOLD;
+  c.font = "700 52px Georgia, serif";
   c.textAlign = "center"; c.textBaseline = "middle";
-  c.strokeStyle = "#fff"; c.lineWidth = 4;
-  c.strokeText("UNO", 0, 0);
-  c.fillText("UNO", 0, 0);
+  c.fillText("☘", W / 2, H / 2 - 34);
+  c.font = "500 30px Georgia, serif";
+  c.fillText("termplay", W / 2, H / 2 + 28);
   c.restore();
 
   const tex = new THREE.CanvasTexture(cv);

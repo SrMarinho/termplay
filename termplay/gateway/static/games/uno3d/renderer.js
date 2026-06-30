@@ -198,7 +198,7 @@ function _drawHand(state) {
     m.rotation.order = "ZYX";
     m.rotation.x = -TILT;
     m.rotation.z = -t * FAN;                       // leque
-    m.position.set(x, (isPlayable ? 0.28 : 0.06) + yLift, z);
+    m.position.set(x, (isPlayable ? 0.56 : 0.38) + yLift, z);
     m.renderOrder = i;                             // empilhar leque corretamente
     m.userData.handIdx = i;
     m.userData.isPlayable = isPlayable;
