@@ -1,8 +1,11 @@
 import * as THREE from "three";
+import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass }     from "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { makeCardTexture, makeCardBack, makeFeltTexture } from "./card-texture.js";
 
 // ── persistent scene state ────────────────────────────────────────────────────
-let _scene, _camera, _renderer, _raf, _canvas, _raycaster;
+let _scene, _camera, _renderer, _composer, _raf, _canvas, _raycaster;
 let _actions = {};
 let _handCards  = [];
 let _drawMesh   = null;
@@ -214,6 +217,16 @@ export function init(canvas, actions) {
   _renderer.toneMapping = THREE.ACESFilmicToneMapping;
   _renderer.toneMappingExposure = 1.15;
 
+  _composer = new EffectComposer(_renderer);
+  _composer.addPass(new RenderPass(_scene, _camera));
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
+    0.55,  // strength  — lúdico mas não exagerado
+    0.7,   // radius    — espalhamento suave
+    0.28   // threshold — objetos brilhantes (cartas, glow, spotlight)
+  );
+  _composer.addPass(bloom);
+
   _scene.add(new THREE.AmbientLight(0x335533, 0.25));
 
   const spot = new THREE.SpotLight(0xfff2d4, 60, 30, Math.PI / 5, 0.45, 1.2);
@@ -248,6 +261,7 @@ export function init(canvas, actions) {
     _camera.aspect = canvas.clientWidth / canvas.clientHeight;
     _camera.updateProjectionMatrix();
     _renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    _composer?.setSize(canvas.clientWidth, canvas.clientHeight);
   }).observe(canvas);
 
   _lastTime = performance.now();
@@ -260,6 +274,7 @@ export function reset() {
   _canvas?.removeEventListener("click",     _onClick);
   _canvas?.removeEventListener("mousemove", _onHover);
   _handCards = []; _drawMesh = null; _anims = []; _prevState = null;
+  _composer?.dispose?.(); _composer = null;
   _renderer?.dispose(); _renderer = null; _scene = null; _canvas = null;
 }
 
@@ -449,5 +464,5 @@ function _loop() {
     }
   }
 
-  _renderer?.render(_scene, _camera);
+  _composer?.render();
 }
