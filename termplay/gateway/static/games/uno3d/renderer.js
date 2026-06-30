@@ -158,7 +158,7 @@ function _diffAndAnimate(prev, next) {
     }
   }
 
-  // ── opponent gained a card ────────────────────────────────────────────────
+  // ── opponent drew or played a card ───────────────────────────────────────
   const players = next.players ?? [];
   const opps = players
     .map((p, i) => ({ idx: i, count: p[1] }))
@@ -166,24 +166,25 @@ function _diffAndAnimate(prev, next) {
   const spread = Math.min((opps.length - 1) * 1.8, 7);
 
   opps.forEach((opp, j) => {
-    const prevCount = prev.players?.[opp.idx]?.[1] ?? 0;
-    const gained    = opp.count - prevCount;
-    if (gained <= 0) return;
     const x = opps.length > 1
       ? -spread / 2 + j * (spread / Math.max(opps.length - 1, 1))
       : 0;
-    for (let k = 0; k < Math.min(gained, 3); k++) {
-      _flyCard({
-        face:    "W:",
-        fromPos: deckPos,
-        fromRot: deckRot,
-        toPos:   [x, 0.06, -3.4],
-        toRot:   [-Math.PI / 2, 0, 0],
-        dur:     0.45,
-        arcH:    0.9,
-        isBack:  true,
-        delay:   k * 0.06,
-      });
+    const oppPos  = [x, 0.06, -2.0];
+    const oppRot  = [-Math.PI / 2, 0, 0];
+    const prevCount = prev.players?.[opp.idx]?.[1] ?? 0;
+    const gained    = opp.count - prevCount;
+    const lost      = prevCount - opp.count;
+
+    if (gained > 0) {
+      for (let k = 0; k < Math.min(gained, 3); k++) {
+        _flyCard({ face: "W:", fromPos: deckPos, fromRot: deckRot,
+          toPos: oppPos, toRot: oppRot, dur: 0.45, arcH: 0.9, isBack: true, delay: k * 0.06 });
+      }
+    }
+
+    if (lost > 0 && topChanged && next.top) {
+      _flyCard({ face: next.top, fromPos: oppPos, fromRot: oppRot,
+        toPos: discardPos, toRot: discardRot, dur: 0.48, arcH: 1.3 });
     }
   });
 }
@@ -315,9 +316,6 @@ function _buildOpponents(state) {
       const m = _backBox();
       m.rotation.x = -Math.PI / 2;
       m.position.set(x + k * 0.07 - (n * 0.07) / 2, 0.02 + k * 0.003, -2.0);
-      if (active) {
-        m.material = new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0x332200, roughness: 0.6 });
-      }
       _scene.add(m);
     }
     _scene.add(_sprite(opp.name + (active ? " ◀" : ""), x, 0.45, -2.8, active ? "#ffe066" : "#ccc"));
