@@ -13,9 +13,9 @@ export function init(canvas, actions) {
   _scene = new THREE.Scene();
   _scene.background = new THREE.Color(0x163316);
 
-  _camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
-  _camera.position.set(0, 6.2, 6.4);
-  _camera.lookAt(0, 0, 0.5);
+  _camera = new THREE.PerspectiveCamera(35, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+  _camera.position.set(0, 7.5, 9.5);
+  _camera.lookAt(0, 0, 0);
 
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   _renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -26,7 +26,7 @@ export function init(canvas, actions) {
   _renderer.toneMappingExposure = 1.15;
 
   _scene.background = new THREE.Color(0x0a140a);
-  _scene.fog = new THREE.Fog(0x0a140a, 12, 26);
+  _scene.fog = new THREE.Fog(0x0a140a, 16, 32);
 
   // ambiente escuro
   _scene.add(new THREE.AmbientLight(0x335533, 0.25));
@@ -180,10 +180,10 @@ function _drawHand(state) {
   if (!n) return;
 
   const ARC_X = Math.min(n * 0.62, 7.6);   // largura do leque
-  const ARC_DEPTH = 0.9;                    // recuo das pontas em Z
-  const ARC_LIFT = 0.5;                     // levantar pontas em Y
-  const FAN = 0.16;                         // rad por carta na borda
-  const TILT = Math.PI / 2 - 0.5;           // inclinação p/ câmera
+  const ARC_DEPTH = 0.6;                    // recuo das pontas em Z
+  const ARC_LIFT = 0.4;                     // levantar pontas em Y
+  const FAN = 0.14;                         // rad por carta na borda
+  const TILT = Math.PI / 2 - 0.7;           // inclinação — face aponta mais p/ câmera
 
   hand.forEach((face, i) => {
     const isPlayable = state.your_turn && !state.need_color && playable.has(i);
@@ -192,7 +192,7 @@ function _drawHand(state) {
 
     const t = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;   // -1..1
     const x = t * (ARC_X / 2);
-    const z = 4.0 + Math.abs(t) * ARC_DEPTH;       // pontas recuam (mais longe)
+    const z = 3.2 + Math.abs(t) * ARC_DEPTH;       // pontas recuam (mais longe)
     const yLift = Math.abs(t) * ARC_LIFT;          // pontas sobem
 
     m.rotation.order = "ZYX";
