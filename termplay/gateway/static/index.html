@@ -213,20 +213,22 @@
       </div>
     </div>
 
-    <div id="uno-color-modal" class="modal-overlay hidden">
-      <div class="modal framed uno-color-modal-box">
-        <span class="corner tl"></span><span class="corner tr"></span>
-        <span class="corner bl"></span><span class="corner br"></span>
-        <h3 class="modal-title">Escolha uma cor</h3>
-        <div class="color-grid">
-          <button data-color="R" class="color-btn R">Vermelho</button>
-          <button data-color="G" class="color-btn G">Verde</button>
-          <button data-color="B" class="color-btn B">Azul</button>
-          <button data-color="Y" class="color-btn Y">Amarelo</button>
-        </div>
+  </section>
+
+  <!-- color modal outside any section — avoids transform containing-block trap -->
+  <div id="uno-color-modal" class="modal-overlay hidden">
+    <div class="modal framed uno-color-modal-box">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <h3 class="modal-title">Escolha uma cor</h3>
+      <div class="color-grid">
+        <button data-color="R" class="color-btn R">Vermelho</button>
+        <button data-color="G" class="color-btn G">Verde</button>
+        <button data-color="B" class="color-btn B">Azul</button>
+        <button data-color="Y" class="color-btn Y">Amarelo</button>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- Rules modal (host configures Uno variants in the lobby) -->
   <div id="rules-modal" class="modal-overlay hidden">
