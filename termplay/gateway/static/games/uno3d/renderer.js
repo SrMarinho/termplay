@@ -15,9 +15,9 @@ const ARC_X    = (n) => Math.min(n * 0.55, 6.0);
 const ARC_D    = 0.4;   // Z depth at tips
 const ARC_LIFT = 0.32;  // Y lift at tips
 const FAN      = 0.10;  // rad rotation per tip
-// Camera (0,7,4.5) → hand center (0,0.38,2.2): perpendicular = arcsin(Δy/d)
-// Δy=6.62, Δz=2.3, d≈7.01 → 1.23 rad
-const TILT     = 1.23;
+// Camera (0,17,10) → hand center (0,0.38,2.2): perpendicular = arcsin(Δy/d)
+// Δy=16.62, Δz=7.8, d≈18.36 → arcsin(0.905) ≈ 1.13 rad
+const TILT     = 1.13;
 const BASE_Y   = 0.38;
 const PLAY_Y   = 0.54;
 
@@ -198,10 +198,10 @@ export function init(canvas, actions) {
 
   _scene = new THREE.Scene();
   _scene.background = new THREE.Color(0x0a140a);
-  _scene.fog = new THREE.Fog(0x0a140a, 8, 18);
+  _scene.fog = new THREE.Fog(0x0a140a, 18, 40);
 
-  _camera = new THREE.PerspectiveCamera(22, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
-  _camera.position.set(0, 7, 4.5);
+  _camera = new THREE.PerspectiveCamera(22, canvas.clientWidth / canvas.clientHeight, 0.1, 200);
+  _camera.position.set(0, 17, 10);
   _camera.lookAt(0, 0, 0);
 
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
