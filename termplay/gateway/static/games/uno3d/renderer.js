@@ -14,24 +14,56 @@ export function init(canvas, actions) {
   _scene.background = new THREE.Color(0x163316);
 
   _camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
-  _camera.position.set(0, 7, 6);
-  _camera.lookAt(0, 0, 0);
+  _camera.position.set(0, 6.2, 6.4);
+  _camera.lookAt(0, 0, 0.5);
 
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   _renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   _renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  _renderer.shadowMap.enabled = true;
+  _renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  _renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  _renderer.toneMappingExposure = 1.15;
 
-  _scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-  const sun = new THREE.DirectionalLight(0xfffbee, 0.85);
-  sun.position.set(4, 8, 5);
-  _scene.add(sun);
+  _scene.background = new THREE.Color(0x0a140a);
+  _scene.fog = new THREE.Fog(0x0a140a, 12, 26);
+
+  // ambiente escuro
+  _scene.add(new THREE.AmbientLight(0x335533, 0.25));
+
+  // spotlight pendente sobre centro da mesa
+  const spot = new THREE.SpotLight(0xfff2d4, 60, 30, Math.PI / 5, 0.45, 1.2);
+  spot.position.set(0, 11, 1);
+  spot.target.position.set(0, 0, 0.5);
+  spot.castShadow = true;
+  spot.shadow.mapSize.set(2048, 2048);
+  spot.shadow.camera.near = 1;
+  spot.shadow.camera.far = 30;
+  spot.shadow.bias = -0.0005;
+  _scene.add(spot);
+  _scene.add(spot.target);
+
+  // preenchimento frio fraco para mão não ficar preta
+  const fill = new THREE.DirectionalLight(0x4466aa, 0.15);
+  fill.position.set(0, 4, 8);
+  _scene.add(fill);
 
   const felt = new THREE.Mesh(
-    new THREE.PlaneGeometry(16, 12),
-    new THREE.MeshLambertMaterial({ color: 0x1b5e20 })
+    new THREE.CircleGeometry(9, 64),
+    new THREE.MeshStandardMaterial({ color: 0x0c3b1e, roughness: 0.95, metalness: 0.0 })
   );
   felt.rotation.x = -Math.PI / 2;
+  felt.receiveShadow = true;
   _scene.add(felt);
+
+  // aro escuro da mesa (borda)
+  const rim = new THREE.Mesh(
+    new THREE.RingGeometry(9, 9.6, 64),
+    new THREE.MeshStandardMaterial({ color: 0x05210f, roughness: 1 })
+  );
+  rim.rotation.x = -Math.PI / 2;
+  rim.position.y = 0.001;
+  _scene.add(rim);
 
   _raycaster = new THREE.Raycaster();
   canvas.addEventListener("click", _onClick);
@@ -72,23 +104,22 @@ export function render(state) {
 // ── card factories ────────────────────────────────────────────────────────────
 
 function _box(face, opts = {}) {
-  const geo = new THREE.BoxGeometry(0.65, 0.95, 0.025);
-  const mats = [
-    new THREE.MeshLambertMaterial({ color: 0x777777 }),
-    new THREE.MeshLambertMaterial({ color: 0x777777 }),
-    new THREE.MeshLambertMaterial({ color: 0x777777 }),
-    new THREE.MeshLambertMaterial({ color: 0x777777 }),
-    new THREE.MeshLambertMaterial({ map: makeCardTexture(face, opts) }),
-    new THREE.MeshLambertMaterial({ map: makeCardBack() }),
+  const geo = new THREE.BoxGeometry(0.66, 0.96, 0.018);
+  const edge = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, roughness: 0.6 });
+  const mats = [edge, edge, edge, edge,
+    new THREE.MeshStandardMaterial({ map: makeCardTexture(face, opts), roughness: 0.55, metalness: 0.05 }),
+    new THREE.MeshStandardMaterial({ map: makeCardBack(), roughness: 0.55 }),
   ];
   const m = new THREE.Mesh(geo, mats);
+  m.castShadow = true;
   m.userData.dyn = true;
   return m;
 }
 
 function _backBox() {
-  const geo = new THREE.BoxGeometry(0.65, 0.95, 0.025);
-  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: makeCardBack() }));
+  const geo = new THREE.BoxGeometry(0.66, 0.96, 0.018);
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: makeCardBack(), roughness: 0.55 }));
+  m.castShadow = true;
   m.userData.dyn = true;
   return m;
 }
@@ -133,7 +164,7 @@ function _drawOpponents(state) {
       m.rotation.x = -Math.PI / 2;
       m.position.set(x + k * 0.07 - (n * 0.07) / 2, 0.02 + k * 0.003, -3.4);
       if (active) {
-        m.material = new THREE.MeshLambertMaterial({ color: 0xffe066, emissive: 0x332200 });
+        m.material = new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0x332200, roughness: 0.6 });
       }
       _scene.add(m);
     }
@@ -148,18 +179,30 @@ function _drawHand(state) {
   const n = hand.length;
   if (!n) return;
 
-  const spread = Math.min(n * 0.72, 8.5);
-  const TILT = Math.PI / 2 - 0.45;
+  const ARC_X = Math.min(n * 0.62, 7.6);   // largura do leque
+  const ARC_DEPTH = 0.9;                    // recuo das pontas em Z
+  const ARC_LIFT = 0.5;                     // levantar pontas em Y
+  const FAN = 0.16;                         // rad por carta na borda
+  const TILT = Math.PI / 2 - 0.5;           // inclinação p/ câmera
 
   hand.forEach((face, i) => {
     const isPlayable = state.your_turn && !state.need_color && playable.has(i);
     const isFaded    = state.your_turn && !state.need_color && !isPlayable;
     const m = _box(face, { playable: isPlayable, faded: isFaded });
-    const x = n > 1 ? -spread / 2 + (i / (n - 1)) * spread : 0;
+
+    const t = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;   // -1..1
+    const x = t * (ARC_X / 2);
+    const z = 4.0 + Math.abs(t) * ARC_DEPTH;       // pontas recuam (mais longe)
+    const yLift = Math.abs(t) * ARC_LIFT;          // pontas sobem
+
+    m.rotation.order = "ZYX";
     m.rotation.x = -TILT;
-    m.position.set(x, isPlayable ? 0.25 : 0.05, 3.5);
-    m.userData.handIdx   = i;
+    m.rotation.z = -t * FAN;                       // leque
+    m.position.set(x, (isPlayable ? 0.28 : 0.06) + yLift, z);
+    m.renderOrder = i;                             // empilhar leque corretamente
+    m.userData.handIdx = i;
     m.userData.isPlayable = isPlayable;
+    m.userData.baseY = m.position.y;
     _handCards.push(m);
     _scene.add(m);
   });
@@ -216,13 +259,12 @@ function _onHover(e) {
   const targets = [..._handCards, _drawMesh].filter(Boolean);
   const hits = _raycaster.intersectObjects(targets, false);
 
-  _handCards.forEach(m => {
-    m.position.y = m.userData.isPlayable ? 0.25 : 0.05;
-  });
+  _handCards.forEach(m => { m.position.y = m.userData.baseY; });
 
   if (hits.length) {
     const o = hits[0].object;
-    o.position.y += 0.18;
+    if (o.userData.handIdx !== undefined) o.position.y = o.userData.baseY + 0.22;
+    else if (o.userData.isDeck) o.position.y += 0.18;
     _canvas.style.cursor = (o.userData.isPlayable || o.userData.isDeck) ? "pointer" : "default";
   } else {
     _canvas.style.cursor = "default";
