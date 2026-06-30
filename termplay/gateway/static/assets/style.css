@@ -575,6 +575,13 @@ a { color: inherit; text-decoration: none; }
 *::-webkit-scrollbar-thumb { background: linear-gradient(var(--surface-2), var(--hairline)); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
 *::-webkit-scrollbar-thumb:hover { background: linear-gradient(var(--hairline), var(--gold)); background-clip: padding-box; }
 
+/* ── How-to-play modal ──────────────────────────────────────────────────────── */
+.help-body { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; max-height: 60vh; overflow-y: auto; }
+.help-section { padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.help-section:last-child { border-bottom: none; }
+.help-heading { font-size: 11px; font-weight: 700; color: var(--gold); margin: 0 0 5px; text-transform: uppercase; letter-spacing: .07em; }
+.help-text { font-size: 13px; color: var(--muted-ink); margin: 0; line-height: 1.6; }
+
 /* ── Truco ─────────────────────────────────────────────────────────────────── */
 .tc-root { display:flex; flex-direction:column; height:100%; gap:8px; padding:12px; box-sizing:border-box; position:relative; }
 .tc-header { display:flex; align-items:center; gap:16px; padding-bottom:8px; border-bottom:1px solid var(--hairline); }

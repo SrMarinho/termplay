@@ -1,6 +1,7 @@
 // app.js — orchestrator: owns the WebSocket and routes messages to screens.
 import * as lobby from "./core/lobby.js";
 import * as rulesModal from "./core/rules-modal.js";
+import * as helpModal from "./core/help-modal.js";
 import * as session from "./core/session.js";
 import { allViews, getView } from "./core/registry.js";
 import "./games/games.js"; // side-effect: every game view self-registers
@@ -22,6 +23,7 @@ function show(name) {
 // ── Active game view ──────────────────────────────────────────────────────────
 
 let activeView = null;
+let activeGameKey = "uno";
 
 function resetActiveView() {
   activeView?.reset?.();
@@ -31,6 +33,7 @@ function resetActiveView() {
 function handleRender(content) {
   let state;
   try { state = JSON.parse(content); } catch { return; }
+  if (state.v) activeGameKey = state.v.split(".")[0];
   const view = getView(state.v);
   if (!view) return;
   if (view !== activeView) { activeView?.reset?.(); activeView = view; }
@@ -202,3 +205,6 @@ document.getElementById("uno-quit")?.addEventListener("click", () => { actions.q
 
 initGameGrid();
 rulesModal.init();
+helpModal.init();
+document.getElementById("help-btn")?.addEventListener("click", () => helpModal.open(selectedGame));
+document.getElementById("help-btn-game")?.addEventListener("click", () => helpModal.open(activeGameKey));

@@ -81,6 +81,7 @@
           </div>
 
           <button id="host-btn-2" class="btn solid block">Abrir sala</button>
+          <button id="help-btn" class="btn ghost block" style="margin-top:8px">Como Jogar ↗</button>
         </div>
       </div>
 
@@ -171,6 +172,7 @@
         <span class="mesa-sub game-meta"></span>
       </div>
       <div class="mesa-actions">
+        <button id="help-btn-game" class="btn ghost">Como Jogar</button>
         <button id="rules-btn-game" class="btn ghost hidden">Regras</button>
         <button id="uno-quit" class="btn danger">Sair</button>
       </div>
@@ -237,6 +239,19 @@
       <div class="modal-actions">
         <button id="rules-cancel" class="btn ghost">Cancelar</button>
         <button id="rules-save" class="btn solid">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- How-to-play modal -->
+  <div id="help-modal" class="modal-overlay hidden">
+    <div class="modal framed">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <h3 class="modal-title"></h3>
+      <div class="help-body"></div>
+      <div class="modal-actions">
+        <button class="btn solid help-close">Entendido</button>
       </div>
     </div>
   </div>
