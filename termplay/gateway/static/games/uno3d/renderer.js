@@ -313,9 +313,27 @@ function _buildDeck() {
     const m = _backBox();
     m.rotation.x = -Math.PI / 2;
     m.position.set(-0.85, 0.02 + k * 0.012, 0.2);
-    if (k === STACK - 1) { m.userData.isDeck = true; _drawMesh = m; }
+    if (k === STACK - 1) {
+      m.userData.isDeck = true;
+      _drawMesh = m;
+      // emissive glow on top card so bloom picks it up
+      m.material = new THREE.MeshStandardMaterial({
+        map: makeCardBack(), roughness: 0.55, transparent: true, alphaTest: 0.5,
+        emissive: new THREE.Color(0xd4a820), emissiveIntensity: 0.55,
+      });
+    }
     _scene.add(m);
   }
+
+  // halo ring under the deck — MeshBasicMaterial is always full-bright → blooms
+  const halo = new THREE.Mesh(
+    new THREE.CircleGeometry(0.72, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.18 })
+  );
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.set(-0.85, 0.001, 0.2);
+  halo.userData.dyn = true;
+  _scene.add(halo);
 }
 
 function _buildOpponents(state) {
