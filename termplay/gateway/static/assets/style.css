@@ -80,7 +80,7 @@ a { color: inherit; text-decoration: none; }
 /* ── screens ────────────────────────────────────────────────────────────────── */
 .screen { display: none; }
 .screen.active { display: block; animation: screen-in .42s var(--ease) both; }
-.screen.game.active { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.screen.game.active { display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
 .hidden { display: none !important; }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 44px 28px 28px; }
 
@@ -295,6 +295,7 @@ a { color: inherit; text-decoration: none; }
 .mesa-status {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 16px 32px; border-bottom: 1px solid var(--hairline);
+  position: relative; z-index: 6;
 }
 .mesa-meta { display: flex; align-items: center; gap: 16px; }
 .pill {
@@ -304,7 +305,7 @@ a { color: inherit; text-decoration: none; }
 .mesa-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted-ink); }
 .mesa-actions { display: flex; align-items: center; gap: 10px; }
 
-.turn-timer { display: flex; align-items: center; gap: 14px; padding: 14px 32px 0; }
+.turn-timer { display: flex; align-items: center; gap: 14px; padding: 14px 32px 0; position: relative; z-index: 6; }
 .timer-bar-wrap { flex: 1; height: 3px; background: var(--hairline); border-radius: 3px; overflow: hidden; }
 .timer-bar { height: 100%; width: 100%; background: var(--gradient-gold); transform-origin: left; will-change: transform; }
 .timer-bar.urgent { background: var(--bordo); }
@@ -358,6 +359,23 @@ a { color: inherit; text-decoration: none; }
 .uno-message.active { color: var(--gold); font-style: normal; }
 .uno-message.flash { animation: flashpop .3s ease; }
 @keyframes flashpop { 0% { transform: scale(.92); opacity: .4; } 100% { transform: scale(1); opacity: 1; } }
+
+/* ── UNO 3D canvas + HUD ────────────────────────────────────────────────────── */
+.uno-3d-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: block; }
+.uno-3d-canvas.hidden { display: none; }
+.uno-3d-hud {
+  position: absolute; bottom: 24px; left: 0; right: 0; z-index: 10;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none;
+}
+.uno-3d-hud.hidden { display: none; }
+.uno-3d-hud > * { pointer-events: auto; }
+.hud-info {
+  background: oklch(10% 0 0 / .65); backdrop-filter: blur(6px);
+  border-radius: 8px; padding: 6px 16px;
+  font-size: 13px; color: #e0e0e0; font-family: var(--mono);
+}
+.uno-3d-hud .btn { min-width: 180px; }
 
 /* color modal (replaces old inline .color-picker strip) */
 .uno-color-modal-box { max-width: 320px; width: 90vw; }

@@ -169,9 +169,12 @@
       <div class="mesa-actions">
         <button id="help-btn-game" class="btn ghost">Como Jogar</button>
         <button id="rules-btn-game" class="btn ghost hidden">Regras</button>
+        <button id="uno-3d-toggle" class="btn ghost small hidden">3D</button>
         <button id="uno-quit" class="btn danger">Sair</button>
       </div>
     </div>
+    <canvas id="uno-3d-canvas" class="uno-3d-canvas hidden"></canvas>
+    <div id="uno-3d-hud" class="uno-3d-hud hidden"></div>
     <div id="uno-timer" class="turn-timer hidden">
       <div class="timer-bar-wrap"><div id="uno-timer-bar" class="timer-bar"></div></div>
       <span id="uno-timer-label" class="timer-label">30</span>
@@ -257,6 +260,7 @@
     </div>
   </div>
 
+  <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" } }</script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
