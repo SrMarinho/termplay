@@ -221,9 +221,9 @@ export function init(canvas, actions) {
   _composer.addPass(new RenderPass(_scene, _camera));
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-    0.55,  // strength  — lúdico mas não exagerado
-    0.7,   // radius    — espalhamento suave
-    0.28   // threshold — objetos brilhantes (cartas, glow, spotlight)
+    0.22,  // strength
+    0.5,   // radius
+    0.45   // threshold
   );
   _composer.addPass(bloom);
 
