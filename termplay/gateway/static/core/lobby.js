@@ -1,7 +1,7 @@
 // lobby.js — room list (Salão) + lobby (assentos, chat, host controls). Pure view.
 import { playerColor } from "./colors.js";
 let handlers = {
-  onJoin: () => {}, onChat: () => {}, onLeave: () => {},
+  onJoin: () => {}, onSpectate: () => {}, onChat: () => {}, onLeave: () => {},
   onStart: () => {}, onAddBot: () => {}, onKick: () => {},
 };
 let role = "guest"; // "host" | "guest"
@@ -84,6 +84,11 @@ export function renderRooms(rooms) {
     btn.disabled = !joinable;
     btn.addEventListener("click", () => handlers.onJoin(room));
     li.querySelector(".ra").appendChild(btn);
+    const watch = document.createElement("button");
+    watch.className = "btn ghost small";
+    watch.textContent = "assistir";
+    watch.addEventListener("click", () => handlers.onSpectate(room));
+    li.querySelector(".ra").appendChild(watch);
     roomList.appendChild(li);
   });
 }
@@ -135,6 +140,18 @@ export function renderState(state) {
     empty.textContent = "cadeira livre";
     lobbyPlayers.appendChild(empty);
   }
+  // watchers sit apart from the table
+  (state.spectators || []).forEach((name) => {
+    const li = document.createElement("li");
+    li.className = "seat";
+    li.innerHTML =
+      avatar(name) +
+      `<span class="seat-body">` +
+      `<span class="seat-name">${esc(name)}${name === myName ? " · você" : ""}</span>` +
+      `<span class="seat-role">espectador</span></span>` +
+      `<span class="chip seat-chip">assistindo</span>`;
+    lobbyPlayers.appendChild(li);
+  });
 
   if (role === "host") {
     startBtn.disabled = !state.can_start;

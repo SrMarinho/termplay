@@ -15,6 +15,51 @@ async def safe_write(ctx: UnoContext, player: Player, text: str) -> None:
         player.active = False
 
 
+def _spectator_payload(ctx: UnoContext) -> str:
+    """Public table view: piles, counts and turn info — never a hand."""
+    st = ctx.state
+    data = {
+        "v": UNO_STATE_TAG,
+        "phase": "play",
+        "top": face(st.top),
+        "color": st.active_color,
+        "direction": st.direction,
+        "current": st.current,
+        "you": -1,
+        "players": [[p.name, len(st.hands[i])] for i, p in enumerate(ctx.players)],
+        "hand": [],
+        "playable": [],
+        "your_turn": False,
+        "need_color": False,
+        "need_target": False,
+        "targets": [],
+        "deadline": ctx.turn_deadline,
+        "message": ctx.message,
+        "pending_draws": st.pending_draws,
+        "may_play_drawn": False,
+        "drawn_card_idx": -1,
+        "multi_played": [],
+        "multi_value": "",
+        "draws_remaining": 0,
+        "drew_unplayable": False,
+        "winner": "",
+        "spectator": True,
+    }
+    return json.dumps(data) + "\n"
+
+
+async def _feed_spectators(ctx: UnoContext, text: str) -> None:
+    import asyncio
+
+    async def send(transport: object) -> None:
+        try:
+            await transport.write(text)  # type: ignore[attr-defined]
+        except (ConnectionError, OSError):
+            pass  # room removes dead spectators from the feed
+
+    await asyncio.gather(*(send(t) for t in list(ctx.spectators)))
+
+
 def _payload(
     ctx: UnoContext,
     idx: int,
@@ -128,6 +173,8 @@ async def broadcast(
             ))
 
     await asyncio.gather(*(send(i, p) for i, p in enumerate(ctx.players)))
+    if ctx.spectators:
+        await _feed_spectators(ctx, _spectator_payload(ctx))
     ctx.message = ""
 
 
@@ -186,6 +233,9 @@ async def broadcast_over(ctx: UnoContext) -> None:
             await safe_write(ctx, p, json.dumps(data) + "\n")
 
     await asyncio.gather(*(send(i, p) for i, p in enumerate(ctx.players)))
+    if ctx.spectators:
+        over = {"v": UNO_STATE_TAG, "phase": "over", "you": -1, "winner": name}
+        await _feed_spectators(ctx, json.dumps(over) + "\n")
 
 
 async def notify_private(ctx: UnoContext, player: Player, idx: int, text: str) -> None:

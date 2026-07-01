@@ -23,6 +23,7 @@ class RoomPlayer:
     input_queue: asyncio.Queue[str] = field(default_factory=asyncio.Queue)
     token: str = field(default_factory=lambda: uuid.uuid4().hex)
     connected: bool = True
+    is_spectator: bool = False
 
 
 @dataclass
@@ -37,6 +38,10 @@ class Room:
     players: list[RoomPlayer] = field(default_factory=list)
     ready: asyncio.Event = field(default_factory=asyncio.Event)
     game_complete: asyncio.Event = field(default_factory=asyncio.Event)
+    # Live list of spectator transports. Controllers that support spectating
+    # hold a reference to this list, so watchers joining mid-match start
+    # receiving the public feed on the next broadcast.
+    spectator_feed: list[ITransportAdapter] = field(default_factory=list)
 
     def add_player(self, player: RoomPlayer) -> bool:
         if self.is_full:
@@ -57,12 +62,21 @@ class Room:
         return next((p for p in self.players if p.token == token), None)
 
     @property
+    def seated(self) -> list[RoomPlayer]:
+        """Players occupying a game seat (spectators excluded)."""
+        return [p for p in self.players if not p.is_spectator]
+
+    @property
+    def spectators(self) -> list[RoomPlayer]:
+        return [p for p in self.players if p.is_spectator]
+
+    @property
     def is_full(self) -> bool:
-        return len(self.players) >= self.max_players
+        return len(self.seated) >= self.max_players
 
     @property
     def player_count(self) -> int:
-        return len(self.players)
+        return len(self.seated)
 
 
 class RoomManager:

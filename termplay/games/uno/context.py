@@ -34,6 +34,9 @@ class UnoContext:
     log: GameLogger
     message: str = ""
     turn_deadline: float = 0.0
+    # Live spectator transports (owned by the room). Watchers get the public
+    # table view — no hands, no prompts.
+    spectators: list[ITransportAdapter] = field(default_factory=list)
 
     @property
     def names(self) -> list[str]:

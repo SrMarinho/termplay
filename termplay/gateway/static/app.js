@@ -68,6 +68,7 @@ class App {
   start() {
     lobby.init({
       onJoin:   (room) => this._joinRoom(room),
+      onSpectate: (room) => this._spectateRoom(room),
       onChat:   (text) => this._gateway.send({ action: "chat", text }),
       onLeave:  () => { this._gateway.send({ action: "leave" }); this._leaveRoom(); },
       onStart:  () => this._gateway.send({ action: "start_game", rules: rulesModal.getRulesSpec() }),
@@ -125,6 +126,16 @@ class App {
         this._screens.show(msg.in_game ? "game" : "lobby");
         if (!msg.in_game) lobby.setRole("guest", msg.you);
         session.save({ code: msg.code, token: msg.session_token });
+        break;
+      case "spectate_joined":
+        this._screens.show("lobby");
+        lobby.setRole("guest", msg.you);
+        session.save({
+          code: msg.code,
+          nick: this._nick.value,
+          token: msg.session_token,
+          ...(this._pendingServer || {}),
+        });
         break;
       case "room_state":
         lobby.renderState(msg);
@@ -186,6 +197,15 @@ class App {
     if (!this._nick.require()) return;
     this._pendingServer = { ip: room.ip, port: room.port };
     this._gateway.send({ action: "join_room", ip: room.ip, port: room.port, name: this._nick.value });
+  }
+
+  _spectateRoom(room) {
+    if (!this._nick.require()) return;
+    this._pendingServer = { ip: room.ip, port: room.port };
+    this._gateway.send({
+      action: "spectate", ip: room.ip, port: room.port,
+      code: room.code || "", name: this._nick.value,
+    });
   }
 
   _initGameGrid() {

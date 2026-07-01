@@ -23,6 +23,7 @@ from termplay.engine.protocol import (
     ACTION_KICK,
     ACTION_LEAVE,
     ACTION_RECONNECT,
+    ACTION_SPECTATE,
     ACTION_START_GAME,
     TYPE_CHAT,
     TYPE_ERROR,
@@ -32,6 +33,7 @@ from termplay.engine.protocol import (
     TYPE_ROOM_CREATED,
     TYPE_ROOM_JOINED,
     TYPE_ROOM_STATE,
+    TYPE_SPECTATE_JOINED,
 )
 from termplay.engine.protocol_adapter import ProtocolServerAdapter
 from termplay.engine.room import Room, RoomManager, RoomPlayer
@@ -109,6 +111,12 @@ class TermPlayServer:
             elif action == ACTION_RECONNECT:
                 await self._reconnect_flow(
                     adapter, reader, writer, str(first.get("token") or "")
+                )
+            elif action == ACTION_SPECTATE:
+                await self._spectate_flow(
+                    adapter,
+                    str(first.get("name") or "Watcher"),
+                    str(first.get("code") or "").upper(),
                 )
             else:
                 await adapter.send_control(
@@ -202,6 +210,36 @@ class TermPlayServer:
         await self._broadcast_state(room)
         await self._serve_player(adapter, room, player)
 
+    # ── Spectator ────────────────────────────────────────────────────────────
+
+    async def _spectate_flow(
+        self, adapter: ProtocolServerAdapter, name: str, code: str
+    ) -> None:
+        room = RoomManager.get(code) if code else RoomManager.first()
+        if room is None:
+            err = (
+                "Sala não encontrada." if not code else f"Sala '{code}' não encontrada."
+            )
+            await adapter.send_control(type=TYPE_ERROR, message=err, fatal=True)
+            return
+        player = RoomPlayer(name=name, transport=adapter, is_spectator=True)
+        room.players.append(player)  # spectators bypass the seat limit
+        room.spectator_feed.append(adapter)
+        await adapter.send_control(
+            type=TYPE_SPECTATE_JOINED,
+            code=room.code,
+            you=name,
+            session_token=player.token,
+        )
+        await self._broadcast_state(room)
+        if room.ready.is_set():
+            await adapter.send_control(type=TYPE_GAME_START, game=room.game)
+        try:
+            await self._serve_player(adapter, room, player)
+        finally:
+            if adapter in room.spectator_feed:
+                room.spectator_feed.remove(adapter)
+
     # ── Reconnect ────────────────────────────────────────────────────────────
 
     async def _reconnect_flow(
@@ -238,6 +276,8 @@ class TermPlayServer:
 
         old.rebind(reader, writer)
         player.connected = True
+        if player.is_spectator and old not in room.spectator_feed:
+            room.spectator_feed.append(old)
         in_game = room.ready.is_set()
         await old.send_control(
             type=TYPE_RECONNECTED,
@@ -251,7 +291,11 @@ class TermPlayServer:
             await old.send_control(type=TYPE_GAME_START, game=room.game)
             if old.last_render is not None:
                 await old.write(old.last_render)
-        await self._serve_player(old, room, player)
+        try:
+            await self._serve_player(old, room, player)
+        finally:
+            if player.is_spectator and old in room.spectator_feed:
+                room.spectator_feed.remove(old)
 
     # ── Unified per-player loop ──────────────────────────────────────────────
 
@@ -355,8 +399,8 @@ class TermPlayServer:
                 self._broadcaster.update(status="waiting")
                 await self._broadcast_state(room)
                 room.ready.clear()
-                if not any(not p.is_bot for p in room.players):
-                    break  # no humans left to rematch
+                if not any(not p.is_bot for p in room.seated):
+                    break  # no seated humans left to rematch
         except asyncio.CancelledError:
             raise
         finally:
@@ -368,7 +412,9 @@ class TermPlayServer:
         """Remove a player; migrate host if they led; drop the room if empty."""
         was_host = player is room.host
         room.remove_player(player)
-        humans = [p for p in room.players if not p.is_bot]
+        if player.transport in room.spectator_feed:
+            room.spectator_feed.remove(player.transport)
+        humans = [p for p in room.seated if not p.is_bot]
         if not humans:
             # No real players left — cancel the (possibly idle) runner and drop.
             runner = self._runners.pop(room.code, None)
@@ -417,9 +463,10 @@ class TermPlayServer:
             MultiplayerRegistry,
         )
 
-        transports: list[ITransportAdapter] = [p.transport for p in room.players]
-        names = [p.name for p in room.players]
-        stealth_flags = [p.stealth for p in room.players]
+        seated = room.seated
+        transports: list[ITransportAdapter] = [p.transport for p in seated]
+        names = [p.name for p in seated]
+        stealth_flags = [p.stealth for p in seated]
 
         factory = MultiplayerRegistry.get(room.game)
         controller: IMultiplayerController
@@ -434,6 +481,11 @@ class TermPlayServer:
             )
         else:
             controller = factory(transports, names, stealth_flags, room.rules)
+        # Optional capability: games that support watchers accept the room's
+        # live spectator feed (duck-typed so older games need no change).
+        add_spectators = getattr(controller, "add_spectators", None)
+        if callable(add_spectators):
+            add_spectators(room.spectator_feed)
         try:
             await controller.run()
         finally:
@@ -475,9 +527,10 @@ class TermPlayServer:
             type=TYPE_ROOM_STATE,
             code=room.code,
             host=room.host.name,
-            players=[p.name for p in room.players],
-            bots=[p.name for p in room.players if p.is_bot],
+            players=[p.name for p in room.seated],
+            bots=[p.name for p in room.seated if p.is_bot],
             disconnected=[p.name for p in room.players if not p.connected],
+            spectators=[p.name for p in room.spectators],
             player_count=room.player_count,
             min_players=MIN_PLAYERS,
             max_players=room.max_players,

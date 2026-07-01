@@ -25,6 +25,7 @@ from termplay.engine.protocol import (
     ACTION_CREATE_ROOM,
     ACTION_JOIN_ROOM,
     ACTION_RECONNECT,
+    ACTION_SPECTATE,
     encode,
 )
 from termplay.gateway.ws import WebSocket, WebSocketClosed, read_http_head
@@ -198,7 +199,7 @@ class WebGateway:
         """Wait for the browser's first connect message (create/join/reconnect)."""
         while True:
             msg = _safe_json(await ws.recv_text())
-            if msg.get("action") in ("create_room", "join_room", "reconnect"):
+            if msg.get("action") in ("create_room", "join_room", "reconnect", "spectate"):
                 return msg
 
     def _resolve_server(self, msg: dict[str, object]) -> tuple[str, int]:
@@ -230,6 +231,12 @@ class WebGateway:
             return {
                 "action": ACTION_RECONNECT,
                 "token": str(msg.get("token") or ""),
+            }
+        if action == "spectate":
+            return {
+                "action": ACTION_SPECTATE,
+                "name": str(msg.get("name") or "Watcher"),
+                "code": str(msg.get("code") or ""),
             }
         return {
             "action": ACTION_JOIN_ROOM,

@@ -18,7 +18,7 @@ from termplay.config.settings import (
     set_last_host,
 )
 from termplay.engine.discovery import DiscoveredRoom, RoomDiscoverer
-from termplay.engine.protocol import ACTION_JOIN_ROOM
+from termplay.engine.protocol import ACTION_JOIN_ROOM, ACTION_SPECTATE
 
 if TYPE_CHECKING:
     from termplay.frontends.textual_app import TermplayTUIApp
@@ -28,7 +28,8 @@ class JoinRoomScreen(Screen[None]):
     """Shows a live table of LAN rooms; select one to join, or type IP manually."""
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        ("escape", "pop_screen", "Back")
+        ("escape", "pop_screen", "Back"),
+        ("w", "spectate_selected", "Watch"),
     ]
 
     DEFAULT_CSS = """
@@ -149,6 +150,15 @@ class JoinRoomScreen(Screen[None]):
         name = self.query_one("#name", Input).value.strip() or "Player"
         await self._join(name, room.ip, room.port)
 
+    async def action_spectate_selected(self) -> None:
+        """Join the highlighted room as a watcher (no seat taken)."""
+        table = self.query_one("#rooms", DataTable)
+        if table.cursor_row is None or table.cursor_row >= len(self._discovered):
+            return
+        room = self._discovered[table.cursor_row]
+        name = self.query_one("#name", Input).value.strip() or "Watcher"
+        await self._connect_and_enter(name, room.ip, room.port, spectate=True)
+
     # ── manual connection ────────────────────────────────────────────────────
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -176,6 +186,11 @@ class JoinRoomScreen(Screen[None]):
         await self._join(name, host, port)
 
     async def _join(self, name: str, host: str, port: int) -> None:
+        await self._connect_and_enter(name, host, port, spectate=False)
+
+    async def _connect_and_enter(
+        self, name: str, host: str, port: int, *, spectate: bool
+    ) -> None:
         set_last_host(host, port)
         app = cast("TermplayTUIApp", self.app)
         ok = await app.connect_server(host, port)
@@ -191,9 +206,12 @@ class JoinRoomScreen(Screen[None]):
 
         waiting = WaitingRoomScreen(my_name=name, is_host=False)
         app.set_message_handler(waiting.on_server_message)
-        await app.connection.send(
-            action=ACTION_JOIN_ROOM, name=name, code="", stealth=get_stealth()
-        )
+        if spectate:
+            await app.connection.send(action=ACTION_SPECTATE, name=name, code="")
+        else:
+            await app.connection.send(
+                action=ACTION_JOIN_ROOM, name=name, code="", stealth=get_stealth()
+            )
         app.push_screen(waiting)
 
     def action_pop_screen(self) -> None:

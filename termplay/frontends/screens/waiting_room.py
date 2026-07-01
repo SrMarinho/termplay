@@ -22,6 +22,7 @@ from termplay.engine.protocol import (
     TYPE_ROOM_CREATED,
     TYPE_ROOM_JOINED,
     TYPE_ROOM_STATE,
+    TYPE_SPECTATE_JOINED,
 )
 
 if TYPE_CHECKING:
@@ -149,7 +150,7 @@ class WaitingRoomScreen(Screen[None]):
             self._pending.append(msg)
             return
         mtype = msg.get("type")
-        if mtype in (TYPE_ROOM_CREATED, TYPE_ROOM_JOINED):
+        if mtype in (TYPE_ROOM_CREATED, TYPE_ROOM_JOINED, TYPE_SPECTATE_JOINED):
             self._code = str(msg.get("code") or "----")
             self.query_one("#code", Static).update(f"Sala: {self._code}")
         elif mtype == TYPE_ROOM_STATE:

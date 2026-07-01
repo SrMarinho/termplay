@@ -48,6 +48,10 @@ class UnoController:
         if rules.initial_card_effect:
             self._apply_initial_card()
 
+    def add_spectators(self, transports: list[ITransportAdapter]) -> None:
+        """Attach the room's live spectator feed (see Room.spectator_feed)."""
+        self._ctx.spectators = transports
+
     def _apply_initial_card(self) -> None:
         card = self._ctx.state.top
         if card.value == "skip":
