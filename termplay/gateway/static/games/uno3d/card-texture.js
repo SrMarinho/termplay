@@ -3,16 +3,18 @@ import * as THREE from "three";
 // Matches 2D card design: dark gradient, gold hairline, Art-Deco corners,
 // spine, cream serif numerals — "quiet luxury / carta-preta" aesthetic.
 
+// Exact 2D "Estilo B" suit gradients (style.css .card.R/G/B/Y) — desaturated,
+// so 2D and 3D read as the same deck.
 const GRAD = {
-  R: ["#b82828", "#780e0e"],
-  G: ["#3a7858", "#245038"],
-  B: ["#1a58c0", "#0a3278"],
-  Y: ["#c09030", "#886010"],
-  W: ["#1e1c10", "#0f0d06"],
+  R: ["#a83b36", "#6f211e"],
+  G: ["#3f7d63", "#27513f"],
+  B: ["#456f8e", "#284a61"],
+  Y: ["#bd9542", "#806228"],
+  W: ["#23200f", "#141109"],
 };
 
 const SPINE = {
-  R: "#ff8080", G: "#80f0b0", B: "#80b8ff", Y: "#ffe880", W: "rgba(212,175,55,0.4)",
+  R: "#d96b63", G: "#74b292", B: "#76a6c9", Y: "#e0c170", W: "rgba(212,175,55,0.4)",
 };
 
 const GOLD  = "#D4AF37";
@@ -103,6 +105,14 @@ export function makeCardTexture(face, { playable = false } = {}) {
     c.fill();
   }
 
+  // Center medallion — faint double ring behind the glyph (cult monogram feel)
+  const medClr = ck === "W" ? "rgba(212,175,55,0.30)" : "rgba(244,236,220,0.22)";
+  c.strokeStyle = medClr;
+  c.lineWidth = 2;
+  c.beginPath(); c.arc(W / 2, H / 2, 92, 0, Math.PI * 2); c.stroke();
+  c.lineWidth = 1;
+  c.beginPath(); c.arc(W / 2, H / 2, 84, 0, Math.PI * 2); c.stroke();
+
   // Center value
   const lbl = SYM[val] ?? val ?? "★";
   c.save();
@@ -128,13 +138,13 @@ export function makeCardTexture(face, { playable = false } = {}) {
   // Film grain
   _noise(c, W, H, 0.05);
 
-  // Playable glow — white glow with blur layers
+  // Playable glow — warm ivory-champagne, matching the 2D playable gold ring
   if (playable) {
     for (const [blur, alpha, lw] of [[18, 0.35, 14], [8, 0.6, 8], [0, 0.95, 4]]) {
       c.save();
-      c.shadowColor = "rgba(255,255,255,0.9)";
+      c.shadowColor = "rgba(255,232,170,0.9)";
       c.shadowBlur = blur;
-      c.strokeStyle = `rgba(255,255,255,${alpha})`;
+      c.strokeStyle = `rgba(255,232,170,${alpha})`;
       c.lineWidth = lw;
       _round(c, 5, 5, W - 10, H - 10, 17);
       c.stroke();
@@ -212,22 +222,55 @@ export function makeCardBack(glow = false) {
 }
 
 export function makeFeltTexture() {
-  const W = 512, H = 512;
+  // Muted bottle-green felt with a candle-light vignette — mirrors the 2D
+  // --gradient-felt (lighter center, darkness pooling at the edges).
+  const W = 1024, H = 1024;
   const cv = document.createElement("canvas");
   cv.width = W; cv.height = H;
   const c = cv.getContext("2d");
-  c.fillStyle = "#0c3b1e"; c.fillRect(0, 0, W, H);
-  for (let i = 0; i < 120; i++) {
+  const grd = c.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2);
+  grd.addColorStop(0, "#2c4a37");
+  grd.addColorStop(0.55, "#1a2f22");
+  grd.addColorStop(1, "#0b130d");
+  c.fillStyle = grd; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 240; i++) {
     const x = Math.random() * W;
-    c.strokeStyle = `rgba(255,255,255,${Math.random() * 0.025})`;
+    c.strokeStyle = `rgba(255,255,255,${Math.random() * 0.02})`;
     c.lineWidth = Math.random() * 1.5 + 0.5;
     c.beginPath(); c.moveTo(x, 0); c.lineTo(x + (Math.random() - 0.5) * 30, H); c.stroke();
   }
-  _noise(c, W, H, 0.14);
+  _noise(c, W, H, 0.1);
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(5, 5);
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+export function makeWoodTexture() {
+  // Dark walnut rail: long-grain strokes over a warm brown base.
+  const W = 1024, H = 1024;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const c = cv.getContext("2d");
+  const grd = c.createLinearGradient(0, 0, W, H);
+  grd.addColorStop(0, "#2a1a10");
+  grd.addColorStop(0.5, "#1e120a");
+  grd.addColorStop(1, "#150c06");
+  c.fillStyle = grd; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 90; i++) {
+    const y = Math.random() * H;
+    const tone = Math.random() > 0.5 ? "255,220,180" : "0,0,0";
+    c.strokeStyle = `rgba(${tone},${Math.random() * 0.06 + 0.02})`;
+    c.lineWidth = Math.random() * 2.5 + 0.5;
+    c.beginPath();
+    c.moveTo(0, y);
+    c.bezierCurveTo(W * 0.3, y + (Math.random() - 0.5) * 40, W * 0.7, y + (Math.random() - 0.5) * 40, W, y + (Math.random() - 0.5) * 20);
+    c.stroke();
+  }
+  _noise(c, W, H, 0.06);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   tex.needsUpdate = true;
   return tex;

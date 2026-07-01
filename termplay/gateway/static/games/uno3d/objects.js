@@ -26,17 +26,61 @@ export function makeCardBackMesh(glow = false) {
   return m;
 }
 
-export function makeTextSprite(text, x, y, z, color = "#fff", scale = 1) {
+export function makeTextSprite(text, x, y, z, color = "#F4ECDC", scale = 1) {
   const cv = document.createElement("canvas");
   cv.width = 256; cv.height = 64;
   const c  = cv.getContext("2d");
-  c.fillStyle = color; c.font = "bold 28px sans-serif";
+  c.shadowColor = "rgba(0,0,0,0.7)"; c.shadowBlur = 6;
+  c.fillStyle = color; c.font = "600 28px Georgia, serif";
   c.textAlign = "center"; c.textBaseline = "middle";
   c.fillText(text, 128, 32);
   const sp = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true })
   );
   sp.scale.set(2.2 * scale, 0.55 * scale, 1);
+  sp.position.set(x, y, z); sp.userData.dyn = true;
+  return sp;
+}
+
+// A circular arrow (looping ring with an arrowhead) — shows the turn order
+// direction without needing any text.
+export function makeDirectionSprite(direction, x, y, z, color = "#D4AF37", scale = 1) {
+  const cv = document.createElement("canvas");
+  cv.width = 128; cv.height = 128;
+  const c  = cv.getContext("2d");
+  const cx = 64, cy = 64, r = 42;
+  const ccw = direction === -1;
+
+  const start = -Math.PI * 0.65;
+  const end   =  Math.PI * 0.65;
+
+  c.strokeStyle = color; c.lineWidth = 8; c.lineCap = "round";
+  c.beginPath();
+  c.arc(cx, cy, r, start, end, ccw);
+  c.stroke();
+
+  // arrowhead at the stroke's terminal point, tangent to the circle — small
+  // relative to the ring's radius so it hugs the curve instead of drooping inward
+  const tipAngle = end;
+  const tipX = cx + r * Math.cos(tipAngle);
+  const tipY = cy + r * Math.sin(tipAngle);
+  const tangent = tipAngle + (ccw ? -Math.PI / 2 : Math.PI / 2);
+  c.fillStyle = color;
+  c.save();
+  c.translate(tipX, tipY);
+  c.rotate(tangent);
+  c.beginPath();
+  c.moveTo(0, 0);      // apex — local +x now points along the tangent (direction of travel)
+  c.lineTo(-9, -6);
+  c.lineTo(-9, 6);
+  c.closePath();
+  c.fill();
+  c.restore();
+
+  const sp = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true })
+  );
+  sp.scale.set(0.7 * scale, 0.7 * scale, 1);
   sp.position.set(x, y, z); sp.userData.dyn = true;
   return sp;
 }

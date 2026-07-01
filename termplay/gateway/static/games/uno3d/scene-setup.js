@@ -4,12 +4,12 @@ import * as THREE from "three";
 import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass }     from "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { makeFeltTexture } from "./card-texture.js";
+import { makeFeltTexture, makeWoodTexture } from "./card-texture.js";
 
 export function createScene(canvas) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a140a);
-  scene.fog = new THREE.Fog(0x0a140a, 18, 40);
+  scene.background = new THREE.Color(0x0a0806);
+  scene.fog = new THREE.Fog(0x0a0806, 16, 36);
 
   const camera = new THREE.PerspectiveCamera(22, canvas.clientWidth / canvas.clientHeight, 0.1, 200);
   camera.position.set(0, 11, 6.5);
@@ -46,9 +46,11 @@ export function createScene(canvas) {
 }
 
 function _addLights(scene) {
-  scene.add(new THREE.AmbientLight(0x335533, 0.25));
+  // Warm candle-lit private salon: champagne key light, faint amber bounce.
+  scene.add(new THREE.AmbientLight(0x40372a, 0.35));
+  scene.add(new THREE.HemisphereLight(0x8a7a5c, 0x0a0806, 0.18));
 
-  const spot = new THREE.SpotLight(0xfff2d4, 60, 30, Math.PI / 5, 0.45, 1.2);
+  const spot = new THREE.SpotLight(0xffe9c4, 60, 30, Math.PI / 5, 0.5, 1.2);
   spot.position.set(0, 11, 1);
   spot.target.position.set(0, 0, 0.5);
   spot.castShadow = true;
@@ -57,23 +59,36 @@ function _addLights(scene) {
   spot.shadow.bias = -0.0005;
   scene.add(spot); scene.add(spot.target);
 
-  const fill = new THREE.DirectionalLight(0x4466aa, 0.15);
+  const fill = new THREE.DirectionalLight(0xd4af37, 0.08);
   fill.position.set(0, 4, 8);
   scene.add(fill);
 }
 
 function _addTable(scene) {
   const felt = new THREE.Mesh(
-    new THREE.CircleGeometry(9, 64),
+    new THREE.CircleGeometry(7.2, 64),
     new THREE.MeshStandardMaterial({ map: makeFeltTexture(), roughness: 0.95 })
   );
   felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true;
   scene.add(felt);
 
-  const rim = new THREE.Mesh(
-    new THREE.RingGeometry(9, 9.6, 64),
-    new THREE.MeshStandardMaterial({ color: 0x05210f, roughness: 1 })
+  // Champagne-gold inlay hairline between the felt and the wooden rail.
+  const inlay = new THREE.Mesh(
+    new THREE.RingGeometry(7.2, 7.28, 96),
+    new THREE.MeshStandardMaterial({
+      color: 0xd4af37, roughness: 0.35, metalness: 0.85,
+      emissive: 0x3a2c08, emissiveIntensity: 0.6,
+    })
   );
-  rim.rotation.x = -Math.PI / 2; rim.position.y = 0.001;
-  scene.add(rim);
+  inlay.rotation.x = -Math.PI / 2; inlay.position.y = 0.004;
+  scene.add(inlay);
+
+  // Walnut rail around the table edge.
+  const rail = new THREE.Mesh(
+    new THREE.RingGeometry(7.28, 9.6, 96),
+    new THREE.MeshStandardMaterial({ map: makeWoodTexture(), roughness: 0.55, metalness: 0.1 })
+  );
+  rail.rotation.x = -Math.PI / 2; rail.position.y = 0.002;
+  rail.receiveShadow = true;
+  scene.add(rail);
 }

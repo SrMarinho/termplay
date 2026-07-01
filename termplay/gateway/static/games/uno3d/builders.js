@@ -3,7 +3,7 @@
 // render() after diffAndAnimate() has already spawned the transition animations.
 
 import * as THREE from "three";
-import { makeCardMesh, makeCardBackMesh, makeTextSprite } from "./objects.js";
+import { makeCardMesh, makeCardBackMesh, makeTextSprite, makeDirectionSprite } from "./objects.js";
 import { oppPos, handPos, OPP_CARD_Y } from "./layout.js";
 import { discardFace } from "./card-face.js";
 
@@ -59,7 +59,7 @@ export function buildOpponents(ctx, state) {
       m.renderOrder = k;
       ctx.scene.add(m);
     }
-    ctx.scene.add(makeTextSprite(opp.name + (active ? " ◀" : ""), x, 1.9, z, active ? "#ffe066" : "#ccc"));
+    ctx.scene.add(makeTextSprite(opp.name + (active ? " ◀" : ""), x, 1.9, z, active ? "#E8C56B" : "#B9B3A4"));
   });
 }
 
@@ -88,6 +88,5 @@ export function buildHand(ctx, state) {
 }
 
 export function buildDirectionLabel(ctx, state) {
-  const dir = state.direction === 1 ? "→ horário" : "← anti-horário";
-  ctx.scene.add(makeTextSprite(dir, 0, 0.15, 0.2, "#aaffaa", 0.8));
+  ctx.scene.add(makeDirectionSprite(state.direction, 0, 0.15, 0.2, "#D4AF37"));
 }
