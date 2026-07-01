@@ -557,11 +557,17 @@ class TermPlayServer:
     @staticmethod
     def _make_bot_transport(game: str, name: str) -> ITransportAdapter:
         """Pick the CPU transport whose AI matches the room's game."""
-        if (game or "").lower() == "blackjack":
+        game_key = (game or "").lower()
+        if game_key == "blackjack":
             from termplay.games.blackjack.application.bot_transport import (
                 BlackjackBotTransportAdapter,
             )
             return BlackjackBotTransportAdapter(name)
+        if game_key == "domino":
+            from termplay.games.dominoes.application.bot_transport import (
+                DominoesBotTransportAdapter,
+            )
+            return DominoesBotTransportAdapter(name)
         from termplay.engine.bot_transport import BotTransportAdapter
         return BotTransportAdapter(name)
 

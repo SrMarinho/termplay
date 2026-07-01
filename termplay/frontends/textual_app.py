@@ -11,6 +11,7 @@ from textual.app import App
 from textual.binding import Binding
 
 import termplay.games.blackjack.plugin  # registra Blackjack no GameRegistry
+import termplay.games.dominoes.plugin  # registra Dominó
 import termplay.games.hangman.plugin  # registra Forca
 import termplay.games.tictactoe.plugin  # registra Velha
 import termplay.games.uno.plugin    # noqa: F401  # registra Uno

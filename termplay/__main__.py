@@ -12,6 +12,7 @@ import sys
 
 # Importar plugins para registrá-los automaticamente (via @GameRegistry.register)
 import termplay.games.blackjack.plugin  # noqa: F401
+import termplay.games.dominoes.plugin  # noqa: F401
 import termplay.games.hangman.plugin  # noqa: F401
 import termplay.games.tictactoe.plugin  # noqa: F401
 import termplay.games.uno.plugin  # noqa: F401

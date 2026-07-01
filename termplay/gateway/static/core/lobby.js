@@ -22,7 +22,7 @@ const startBtn = document.getElementById("start-btn");
 const startHint = document.getElementById("start-hint");
 
 // Pretty game names for the lobby subtitle / room rows.
-const GAME_NAMES = { uno: "Uno", blackjack: "Blackjack", hangman: "Forca", velha: "Velha" };
+const GAME_NAMES = { uno: "Uno", blackjack: "Blackjack", hangman: "Forca", velha: "Velha", domino: "Dominó" };
 const gameName = (g) => GAME_NAMES[g] || (g ? g[0].toUpperCase() + g.slice(1) : "Jogo");
 
 export function init(h) {
