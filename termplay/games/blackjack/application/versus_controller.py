@@ -62,6 +62,7 @@ class BlackjackVersusController:
         self._message = ""
         self._turn_deadline: float = 0.0
         self._start = 0  # index of the player who acts first this round
+        self._revealed = True  # opponents' hands visible? (round-end reveal, if hide_opponent_cards)
         self._winner_name = ""
         self._log = GameLogger("blackjack")
         self._log.event("match_start", players=self._names, target=TARGET_SCORE)
@@ -98,6 +99,7 @@ class BlackjackVersusController:
             p.hand = Hand([deck.draw(), deck.draw()])
             p.done = p.hand.is_blackjack  # natural 21 stands automatically
         self._message = "Nova rodada — boa sorte!"
+        self._revealed = not self._rules.hide_opponent_cards
 
         for player in self._turn_order():
             if not player.active:
@@ -107,6 +109,7 @@ class BlackjackVersusController:
                 return None  # someone left — abort and let run() end the match
 
         winner = self._resolve()
+        self._revealed = True
         await self._broadcast()  # reveal final hands + result message
         return winner
 
@@ -213,17 +216,23 @@ class BlackjackVersusController:
             return "blackjack"
         return "stand" if p.done else ""
 
+    def _player_row(self, i: int, p: _BJPlayer, viewer: int) -> list:
+        hide = self._rules.hide_opponent_cards and not self._revealed and i != viewer
+        if hide:
+            # Cards, total and bust/blackjack/stand status all leak information
+            # about the hand — keep every one of them opaque until the round
+            # reveal. "out" (left the match) isn't hand info, so it still shows.
+            cards = ["??"] * len(p.hand.cards)
+            value = 0
+            status = "out" if not p.active else ""
+        else:
+            cards = [c.display for c in p.hand.cards]
+            value = p.hand.value
+            status = self._status(p)
+        return [p.name, cards, value, p.score, status]
+
     def _payload(self, idx: int, current: int, *, your_turn: bool, phase: str) -> str:
-        players = [
-            [
-                p.name,
-                [c.display for c in p.hand.cards],
-                p.hand.value,
-                p.score,
-                self._status(p),
-            ]
-            for p in self._players
-        ]
+        players = [self._player_row(i, p, idx) for i, p in enumerate(self._players)]
         me = self._players[idx]
         data = {
             "v": BJ_STATE_TAG,
@@ -238,6 +247,7 @@ class BlackjackVersusController:
             "message": self._message,
             "target_score": TARGET_SCORE,
             "winner": self._winner_name,
+            "hide_opponent_cards": self._rules.hide_opponent_cards,
         }
         return json.dumps(data) + "\n"
 

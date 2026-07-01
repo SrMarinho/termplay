@@ -44,7 +44,20 @@ def _payload(
         else:
             playable = [i for i, c in enumerate(st.hands[idx]) if c.value == pend]
     else:
-        playable = [i for i, c in enumerate(st.hands[idx]) if st.playable(c)]
+        hand = st.hands[idx]
+        playable = [i for i, c in enumerate(hand) if st.playable(c)]
+        if ctx.rules.wild4_strict:
+            # Mirrors input_reader.get_move's wild4_strict check: a Wild+4 is
+            # illegal while any non-wild card is playable. Keeping this list in
+            # sync with that check matters for bots (BotTransportAdapter only
+            # ever submits indices from this list — anything else silently
+            # never gets a retry prompt, so a mismatch here hangs the bot's
+            # turn until the timeout instead of it actually playing).
+            has_non_wild_alt = any(
+                not hand[i].is_wild for i in playable
+            )
+            if has_non_wild_alt:
+                playable = [i for i in playable if not hand[i].is_wild or hand[i].value != "wild4"]
     data = {
         "v": UNO_STATE_TAG,
         "phase": "play",

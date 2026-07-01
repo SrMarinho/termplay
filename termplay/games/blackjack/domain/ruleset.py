@@ -9,6 +9,7 @@ from dataclasses import dataclass, fields
 @dataclass
 class BlackjackRuleset:
     bust_penalty: bool = False  # busting deducts 1 point from the player's score
+    hide_opponent_cards: bool = True  # opponents' hands are face-down; off reveals them to everyone
 
     @classmethod
     def default(cls) -> BlackjackRuleset:
