@@ -24,3 +24,6 @@ Thumbs.db
 
 # Pre-commit
 .pre-commit-config.yaml.backup
+
+# Tailwind standalone CLI (downloaded binary, not source-controlled)
+/tools/tailwindcss.exe

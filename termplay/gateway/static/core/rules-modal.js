@@ -14,6 +14,7 @@ const GAME_RULE_DEFS = {
   ],
   blackjack: [
     { key: "bust_penalty", label: "Punição por estourar", desc: "estourar (passar de 21) desconta 1 ponto do placar" },
+    { key: "hide_opponent_cards", label: "Esconder cartas dos oponentes", desc: "cartas dos outros jogadores ficam viradas para baixo (mostradas rapidamente ao comprar)" },
   ],
   truco: [
     { key: "mao_de_onze", label: "Mão de onze", desc: "time com 11 pts decide jogar ou correr antes de ver as cartas" },
@@ -26,7 +27,7 @@ const GAME_PRESETS = {
     br:       { draw_then_play: false, initial_card_effect: false, wild4_strict: false, stack_draws: true, draw_until_play: true, zero_swap: true, one_minigame: true, multi_same_number: true, manual_draw: true },
   },
   blackjack: {
-    standard: { bust_penalty: false },
+    standard: { bust_penalty: false, hide_opponent_cards: true },
   },
   truco: {
     standard: { mao_de_onze: true },

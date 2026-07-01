@@ -19,11 +19,8 @@ export function startTimer(deadlineUnix) {
     const remaining = _timerDeadline - Date.now() / 1000;
     const frac = Math.max(0, Math.min(1, remaining / _timerTotal));
     const secs = Math.ceil(Math.max(0, remaining));
-    const urgent = remaining < 8;
     els.timerBar.style.strokeDashoffset = TIMER_RING_CIRC * (1 - frac);
-    els.timerBar.classList.toggle("urgent", urgent);
     els.timerLabel.textContent = secs;
-    els.timerLabel.classList.toggle("urgent", urgent);
     if (remaining > 0) timerRaf = requestAnimationFrame(tick);
   }
   timerRaf = requestAnimationFrame(tick);
@@ -53,6 +50,9 @@ export function flash(text) {
 
 export function renderOver(state) {
   els.picker.classList.add("hidden");
+  els.colorModal?.classList.remove("open");
+  els.colorModal?.classList.add("hidden");
+  document.getElementById("uno-target-picker")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "uno-over";
   overlay.innerHTML =

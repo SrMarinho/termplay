@@ -314,14 +314,11 @@ a { color: inherit; text-decoration: none; }
   fill: none; stroke: var(--gold); stroke-width: 4; stroke-linecap: round;
   stroke-dasharray: 163.36; stroke-dashoffset: 0;
   transform-origin: 30px 30px; will-change: stroke-dashoffset;
-  transition: stroke 0.2s;
 }
-.timer-ring-progress.urgent { stroke: var(--bordo); }
 .timer-label {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--muted-ink);
+  font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--gold);
 }
-.timer-label.urgent { color: var(--bordo); }
 
 .uno-stage { flex: 1; display: flex; flex-direction: column; padding: 22px 32px 32px; gap: 22px; }
 
@@ -372,7 +369,7 @@ a { color: inherit; text-decoration: none; }
 @keyframes flashpop { 0% { transform: scale(.92); opacity: .4; } 100% { transform: scale(1); opacity: 1; } }
 
 /* ── UNO 3D canvas + HUD ────────────────────────────────────────────────────── */
-.uno-3d-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: block; background: #0a140a; }
+.uno-3d-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: block; background: #0a0806; }
 .uno-3d-canvas.hidden { display: none; }
 .uno-3d-info {
   position: absolute; top: 52px; left: 0; right: 0; z-index: 10;
@@ -597,8 +594,11 @@ a { color: inherit; text-decoration: none; }
 
 /* own hand */
 .bj-me { margin-top: auto; border-top: 1px solid var(--hairline); padding-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.bj-me-info { font-size: 14px; color: var(--muted-ink); display: flex; align-items: center; gap: 8px; }
-.bj-me-info .bj-me-stats { color: var(--muted-ink); }
+.bj-me-info { font-size: 16px; color: var(--muted-ink); display: flex; align-items: center; gap: 8px; }
+.bj-me-info .bj-me-stats { color: var(--gold); font-size: 22px; font-weight: 700; }
+.bj-me-cards .bj-card { width: 92px; height: 132px; border-radius: 13px; }
+.bj-me-cards .bj-card .bj-rank { font-size: 36px; }
+.bj-me-cards .bj-c-suit { font-size: 24px; }
 .bj-actions { display: flex; gap: 12px; }
 
 /* cards */
@@ -610,8 +610,16 @@ a { color: inherit; text-decoration: none; }
 .bj-corner-br { bottom: 5px; right: 6px; transform: rotate(180deg); }
 .bj-c-suit { font-size: 20px; }
 
-/* game-over overlay */
-.bj-over { position: absolute; inset: 0; z-index: 220; display: flex; align-items: center; justify-content: center; background: oklch(0% 0 0/.6); }
+/* face-down opponent card (hide_opponent_cards rule) */
+.bj-card-back {
+  background: linear-gradient(160deg, #3d3720 0%, #2a2410 50%, #1a1508 100%);
+  border: 1px solid oklch(74.5% .118 80/.55);
+}
+.bj-card-back::after {
+  content: "★";
+  color: oklch(74.5% .118 80/.45);
+  font-size: 22px;
+}
 
 .kick-btn { margin-left: auto; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--hairline); background: transparent; color: var(--muted-ink); cursor: pointer; font-size: 12px; line-height: 1; transition: all .12s; }
 .kick-btn:hover { background: var(--bordo); border-color: var(--bordo); color: var(--ink); }

@@ -2,10 +2,10 @@
 
 import { registerView } from "../../core/registry.js";
 import { buildPalette, playerColor } from "../../core/colors.js";
+import { makeCard, makeCardPlaceholder } from "../../core/card.js";
 
 const SUIT_LABEL = { C: "♣", H: "♥", S: "♠", D: "♦" };
 const SUIT_COLOR  = { C: "#2a2", H: "#d44", S: "#555", D: "#d44" };
-const RANK_DISPLAY = { Q: "Q", J: "J", K: "K", A: "A" };
 
 let _ctx = { actions: {}, root: null };
 let _timerRaf = null;
@@ -104,7 +104,7 @@ function _renderScore(root, state) {
 function _renderVira(root, state) {
   const el = root.querySelector("#tc-vira");
   el.replaceChildren();
-  el.appendChild(_makeCardEl(state.vira));
+  el.appendChild(makeCard(state.vira, { suitMap: SUIT_LABEL }));
 }
 
 function _renderTable(root, state) {
@@ -128,9 +128,9 @@ function _renderTable(root, state) {
     const cardWrap = document.createElement("div");
     cardWrap.className = "tc-slot-card";
     if (state.table[i] !== null) {
-      cardWrap.appendChild(_makeCardEl(state.table[i]));
+      cardWrap.appendChild(makeCard(state.table[i], { suitMap: SUIT_LABEL }));
     } else {
-      cardWrap.innerHTML = `<div class="bj-card bj-card-placeholder"></div>`;
+      cardWrap.appendChild(makeCardPlaceholder());
     }
 
     slot.appendChild(label);
@@ -161,7 +161,7 @@ function _renderHand(root, state) {
   el.replaceChildren();
   const hand = state.your_hand ?? [];
   hand.forEach((face, idx) => {
-    const card = _makeCardEl(face);
+    const card = makeCard(face, { suitMap: SUIT_LABEL });
     card.classList.add("tc-hand-card");
     if (state.your_turn && state.phase === "play") {
       card.classList.add("clickable");
@@ -177,7 +177,7 @@ function _renderHand(root, state) {
     sep.textContent = "parceiro";
     el.appendChild(sep);
     state.partner_hand.forEach((face) => {
-      const card = _makeCardEl(face);
+      const card = makeCard(face, { suitMap: SUIT_LABEL });
       card.classList.add("tc-partner-card");
       el.appendChild(card);
     });
@@ -244,21 +244,6 @@ function _stopTimer(root) {
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
-
-function _makeCardEl(face) {
-  const str = String(face);
-  const suitCode = str.slice(-1);           // C, H, S, D
-  const rank = str.slice(0, -1);
-  const suitSym = SUIT_LABEL[suitCode] ?? suitCode;
-  const isRed = suitCode === "H" || suitCode === "D";
-  const el = document.createElement("div");
-  el.className = "bj-card" + (isRed ? " red" : "");
-  el.innerHTML =
-    `<span class="bj-corner bj-corner-tl"><span class="bj-c-suit">${suitSym}</span></span>` +
-    `<span class="bj-rank">${RANK_DISPLAY[rank] ?? rank}</span>` +
-    `<span class="bj-corner bj-corner-br"><span class="bj-c-suit">${suitSym}</span></span>`;
-  return el;
-}
 
 function _tablePositions(you, n) {
   // Returns position string per player: "bottom","top","left","right"

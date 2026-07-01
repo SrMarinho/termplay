@@ -1,0 +1,6 @@
+/* Tailwind entry — compiled to tailwind.build.css by tools/tailwindcss.exe.
+   v4 auto-detects content next to this file, but our game views build class
+   names inside innerHTML string literals across static/, so scan explicitly. */
+@import "tailwindcss";
+@source "../**/*.html";
+@source "../**/*.js";

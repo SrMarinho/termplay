@@ -1,11 +1,19 @@
 // games/blackjack/index.js — BlackjackView
 
 import { registerView } from "../../core/registry.js";
-import { makeCard } from "../../core/cards.js";
+import { makeCard, makeCardBack } from "../../core/card.js";
 import { buildPalette, playerColor } from "../../core/colors.js";
+import { createTurnTimer } from "../../core/timer.js";
 
 const ctx = { actions: {}, root: null };
-let timerRaf = null;
+const turnTimer = createTurnTimer({
+  onTick: (remaining) => {
+    const label = ctx.root?.querySelector(".bj-timer-label");
+    if (!label) return;
+    label.textContent = Math.ceil(remaining);
+    label.classList.toggle("urgent", remaining < 8);
+  },
+});
 let prevCounts = []; // card count per player index
 
 const STATUS_LABEL = {
@@ -166,6 +174,11 @@ function renderOthers(root, state, flyTargets) {
     const newCount = Math.max(0, cards.length - prev);
     prevCounts[i] = cards.length;
 
+    // Server sends "??" placeholders (and status "") while an opponent's hand
+    // is hidden — reveal is a single atomic broadcast once everyone's done,
+    // no client-side timing needed.
+    const hidden = cards.some((face) => face === "??");
+
     const seat = document.createElement("div");
     seat.className = "bj-seat" +
       (i === state.current ? " active" : "") +
@@ -178,13 +191,13 @@ function renderOthers(root, state, flyTargets) {
     head.innerHTML =
       `<span class="avatar sm" style="--pc:${playerColor(i)}">${esc(initials(name))}</span>` +
       `<span class="bj-name" style="color:${playerColor(i)}">${esc(name)}</span>` +
-      `<span class="bj-value">${value}</span>` +
+      `<span class="bj-value">${hidden ? "?" : value}</span>` +
       (statusLabel ? `<span class="bj-badge ${status}">${statusLabel}</span>` : "");
 
     const hand = document.createElement("div");
     hand.className = "bj-seat-cards";
     cards.forEach((face, ci) => {
-      const card = makeCard(face);
+      const card = hidden ? makeCardBack() : makeCard(face);
       if (ci >= cards.length - newCount) flyTargets.push(card);
       hand.appendChild(card);
     });
@@ -237,7 +250,9 @@ function renderOver(state) {
   stopTimer();
   if (root.querySelector(".bj-over")) return;
   const overlay = document.createElement("div");
-  overlay.className = "bj-over";
+  // "bj-over" is a bare JS query hook (see render()/renderOver() lookups below) —
+  // no CSS rule targets it, all visuals are the Tailwind utilities alongside it.
+  overlay.className = "bj-over absolute inset-0 z-[220] flex items-center justify-center bg-black/60";
   overlay.innerHTML =
     `<div class="over-card">` +
     `<div class="over-title">${state.winner ? `🏆 ${esc(state.winner)} venceu!` : "Fim de jogo"}</div>` +
@@ -255,21 +270,12 @@ function gameOver() {}
 // ── timer ──────────────────────────────────────────────────────────────────────
 
 function startTimer(root, deadlineUnix) {
-  const timer = root.querySelector(".bj-timer");
-  const label = root.querySelector(".bj-timer-label");
-  timer.classList.remove("hidden");
-  stopTimer();
-  function tick() {
-    const remaining = Math.max(0, deadlineUnix - Date.now() / 1000);
-    label.textContent = Math.ceil(remaining);
-    label.classList.toggle("urgent", remaining < 8);
-    if (remaining > 0) timerRaf = requestAnimationFrame(tick);
-  }
-  timerRaf = requestAnimationFrame(tick);
+  root.querySelector(".bj-timer").classList.remove("hidden");
+  turnTimer.start(deadlineUnix);
 }
 
 function stopTimer() {
-  if (timerRaf !== null) { cancelAnimationFrame(timerRaf); timerRaf = null; }
+  turnTimer.stop();
 }
 
 function initials(name) {
