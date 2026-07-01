@@ -1,9 +1,12 @@
 // core/session.js — browser session persistence (survives page reload).
+// Holds { code, nick, token, ip, port } for room rejoin/reconnect.
 
 const SESSION_KEY = "termplay.session";
 
-export function save(code, nick) {
-  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ code, nick })); } catch { /* quota or private mode */ }
+export function save(data) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...load(), ...data }));
+  } catch { /* quota or private mode */ }
 }
 
 export function clear() {

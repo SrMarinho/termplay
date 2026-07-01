@@ -1,221 +1,201 @@
-// app.js — orchestrator: owns the WebSocket and routes messages to screens.
+// app.js — composition root: wires transport, session, screens and views,
+// and routes server messages to the right collaborator.
 import * as lobby from "./core/lobby.js";
 import * as rulesModal from "./core/rules-modal.js";
 import * as helpModal from "./core/help-modal.js";
 import * as session from "./core/session.js";
-import { allViews, getView } from "./core/registry.js";
+import { GatewaySocket } from "./core/gateway.js";
+import { NicknameField } from "./core/nickname.js";
+import { ScreenRouter } from "./core/screens.js";
+import { ViewManager } from "./core/view-manager.js";
+import { buildGameActions } from "./core/game-actions.js";
 import "./games/games.js"; // side-effect: every game view self-registers
 
-// ── Screens ──────────────────────────────────────────────────────────────────
-
-const screens = {
-  rooms: document.getElementById("screen-rooms"),
-  lobby: document.getElementById("screen-lobby"),
-  game:  document.getElementById("screen-game"),
-};
-const topbar = document.querySelector(".topbar");
-
-function show(name) {
-  for (const [key, el] of Object.entries(screens)) el.classList.toggle("active", key === name);
-  topbar?.classList.toggle("hidden", name === "game");
-}
-
-// ── Active game view ──────────────────────────────────────────────────────────
-
-let activeView = null;
-let activeGameKey = "uno";
-
-function resetActiveView() {
-  activeView?.reset?.();
-  activeView = null;
-}
-
-function handleRender(content) {
-  let state;
-  try { state = JSON.parse(content); } catch { return; }
-  if (state.v) activeGameKey = state.v.split(".")[0];
-  const view = getView(state.v);
-  if (!view) return;
-  if (view !== activeView) { activeView?.reset?.(); activeView = view; }
-  view.render(state);
-}
-
-// ── Nickname ──────────────────────────────────────────────────────────────────
-
-const NICK_KEY = "termplay.nick";
-const nickInput = document.getElementById("nick");
-const savedNick = localStorage.getItem(NICK_KEY);
-if (savedNick) nickInput.value = savedNick;
-nickInput.addEventListener("input", () => localStorage.setItem(NICK_KEY, nickInput.value.trim()));
-
-function nickname() {
-  return nickInput.value.trim().slice(0, 16);
-}
-
-function requireNick() {
-  const n = nickname();
-  if (n) return true;
-  nickInput.focus();
-  nickInput.classList.add("field-error");
-  nickInput.addEventListener("input", () => nickInput.classList.remove("field-error"), { once: true });
-  return false;
-}
-
-// ── Gateway ───────────────────────────────────────────────────────────────────
-
-class Gateway {
-  constructor(onMessage, onStatus, onClose) {
-    const proto = location.protocol === "https:" ? "wss" : "ws";
-    this.ws = new WebSocket(`${proto}://${location.host}/ws`);
-    this.ws.onopen    = () => onStatus("connected");
-    this.ws.onclose   = () => { onStatus("disconnected"); onClose(); };
-    this.ws.onerror   = () => onStatus("error");
-    this.ws.onmessage = (ev) => onMessage(JSON.parse(ev.data));
+class ConnectionBadge {
+  constructor(el) {
+    this._el = el;
+    this._labels = {
+      connected: "LAN · estável",
+      disconnected: "LAN · offline",
+      error: "LAN · erro",
+      connecting: "LAN · conectando",
+    };
   }
-  send(obj) {
-    if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj));
+
+  set(status) {
+    this._el.textContent = this._labels[status] || `LAN · ${status}`;
+    this._el.className = `conn ${status}`;
   }
 }
 
-const connBadge = document.getElementById("conn");
-const hostBtn   = document.getElementById("host-btn");
-const hostHint  = document.getElementById("host-hint");
+class App {
+  constructor() {
+    this._screens = new ScreenRouter();
+    this._views = new ViewManager();
+    this._nick = new NicknameField(document.getElementById("nick"));
+    this._badge = new ConnectionBadge(document.getElementById("conn"));
+    this._hostBtn = document.getElementById("host-btn");
+    this._hostHint = document.getElementById("host-hint");
 
-function onStatus(status) {
-  const labels = { connected: "LAN · estável", disconnected: "LAN · offline", error: "LAN · erro", connecting: "LAN · conectando" };
-  connBadge.textContent = labels[status] || `LAN · ${status}`;
-  connBadge.className   = `conn ${status}`;
-  if (status === "connected") attemptRejoin();
-}
+    this._selectedGame = "uno";
+    this._pendingServer = null;
+    this._reconnectAttempts = 0;
 
-const gateway = new Gateway(onMessage, onStatus, () => { hostBtn.disabled = false; hostHint.textContent = ""; });
-
-// ── Session rejoin ────────────────────────────────────────────────────────────
-
-let gameServer  = { ip: "127.0.0.1", port: 4443 };
-let rejoinTried = false;
-
-function attemptRejoin() {
-  if (rejoinTried) return;
-  rejoinTried = true;
-  const s = session.load();
-  if (s?.code) {
-    if (s.nick) nickInput.value = s.nick;
-    gateway.send({ action: "join_room", code: s.code, name: s.nick || nickname() });
+    this._connect();
   }
-}
 
-function leaveRoom() {
-  session.clear();
-  location.reload();
-}
-
-// ── Game actions ──────────────────────────────────────────────────────────────
-
-const sendInput = (text) => gateway.send({ action: "game_input", text });
-const actions = {
-  play:         (idx) => sendInput(String(idx + 1)),
-  draw:         ()    => sendInput("d"),
-  pass:         ()    => sendInput("p"),
-  chooseColor:  (c)   => sendInput(c),
-  chooseTarget: (i)   => sendInput(String(i + 1)),
-  skipSwap:     ()    => sendInput("skip"),
-  tap:          ()    => sendInput("tap"),
-  hit:          ()    => sendInput("h"),
-  stand:        ()    => sendInput("s"),
-  quit:         ()    => sendInput("q"),
-  send:         (t)   => sendInput(t),
-  backToLobby:  ()    => { resetActiveView(); show("lobby"); },
-};
-
-// ── Message router ────────────────────────────────────────────────────────────
-
-function onMessage(msg) {
-  switch (msg.type) {
-    case "room_list":
-      if (msg.server) gameServer = msg.server;
-      lobby.renderRooms(msg.rooms);
-      break;
-    case "room_created":
-      show("lobby");
-      lobby.setRole("host", msg.you);
-      session.save(msg.code, nickname());
-      rulesModal.setGame(selectedGame);
-      break;
-    case "room_joined":
-      show("lobby");
-      lobby.setRole("guest", msg.you);
-      session.save(msg.code, nickname());
-      break;
-    case "room_state":
-      lobby.renderState(msg);
-      break;
-    case "chat":
-      lobby.addChat(msg.name, msg.text);
-      break;
-    case "game_start":
-      show("game");
-      resetActiveView();
-      break;
-    case "game_render":
-      handleRender(msg.content);
-      break;
-    case "game_over":
-      activeView?.gameOver();
-      break;
-    case "error":
-      alert(msg.message || "Server error");
-      if (msg.fatal) leaveRoom();
-      break;
-  }
-}
-
-// ── Room actions ──────────────────────────────────────────────────────────────
-
-let selectedGame = "uno";
-
-function hostRoom() {
-  if (!requireNick()) return;
-  gateway.send({ action: "create_room", name: nickname(), game: selectedGame });
-  hostBtn.disabled    = true;
-  hostHint.textContent = "Creating…";
-}
-
-function joinRoom(room) {
-  if (!requireNick()) return;
-  gateway.send({ action: "join_room", ip: room.ip, port: room.port, name: nickname() });
-}
-
-function initGameGrid() {
-  const tiles = document.querySelectorAll(".game-tile");
-  for (const tile of tiles) {
-    tile.addEventListener("click", () => {
-      tiles.forEach((t) => t.classList.remove("selected"));
-      tile.classList.add("selected");
-      selectedGame = tile.dataset.game || "uno";
+  _connect() {
+    this._gateway = new GatewaySocket({
+      onMessage: (msg) => this._route(msg),
+      onStatus: (status) => this._onStatus(status),
+      onClose: () => {
+        this._hostBtn.disabled = false;
+        this._hostHint.textContent = "";
+        this._scheduleReconnect();
+      },
     });
   }
+
+  /** Recreate the socket with backoff while a resumable session exists. */
+  _scheduleReconnect() {
+    if (!session.load()?.token || this._reconnectAttempts >= 8) return;
+    const delay = Math.min(500 * 2 ** this._reconnectAttempts, 8000);
+    this._reconnectAttempts += 1;
+    setTimeout(() => this._connect(), delay);
+  }
+
+  start() {
+    lobby.init({
+      onJoin:   (room) => this._joinRoom(room),
+      onChat:   (text) => this._gateway.send({ action: "chat", text }),
+      onLeave:  () => { this._gateway.send({ action: "leave" }); this._leaveRoom(); },
+      onStart:  () => this._gateway.send({ action: "start_game", rules: rulesModal.getRulesSpec() }),
+      onAddBot: () => this._gateway.send({ action: "add_bot" }),
+      onKick:   (name) => this._gateway.send({ action: "kick", target: name }),
+    });
+
+    const actions = buildGameActions(
+      (text) => this._gateway.send({ action: "game_input", text }),
+      { backToLobby: () => { this._views.reset(); this._screens.show("lobby"); } }
+    );
+    this._views.initAll(actions);
+
+    this._hostBtn.addEventListener("click", () => this._hostRoom());
+    document.getElementById("host-btn-2")?.addEventListener("click", () => this._hostRoom());
+    document.getElementById("uno-quit")?.addEventListener("click", () => {
+      actions.quit();
+      this._leaveRoom();
+    });
+
+    this._initGameGrid();
+    rulesModal.init();
+    helpModal.init();
+    document.getElementById("help-btn")
+      ?.addEventListener("click", () => helpModal.open(this._selectedGame));
+    document.getElementById("help-btn-game")
+      ?.addEventListener("click", () => helpModal.open(this._views.gameKey));
+  }
+
+  // ── message routing ─────────────────────────────────────────────────────────
+
+  _route(msg) {
+    switch (msg.type) {
+      case "room_list":
+        lobby.renderRooms(msg.rooms);
+        break;
+      case "room_created":
+        this._screens.show("lobby");
+        lobby.setRole("host", msg.you);
+        session.save({ code: msg.code, nick: this._nick.value, token: msg.session_token });
+        rulesModal.setGame(this._selectedGame);
+        break;
+      case "room_joined":
+        this._screens.show("lobby");
+        lobby.setRole("guest", msg.you);
+        session.save({
+          code: msg.code,
+          nick: this._nick.value,
+          token: msg.session_token,
+          ...(this._pendingServer || {}),
+        });
+        break;
+      case "reconnected":
+        this._screens.show(msg.in_game ? "game" : "lobby");
+        if (!msg.in_game) lobby.setRole("guest", msg.you);
+        session.save({ code: msg.code, token: msg.session_token });
+        break;
+      case "room_state":
+        lobby.renderState(msg);
+        break;
+      case "chat":
+        lobby.addChat(msg.name, msg.text);
+        break;
+      case "game_start":
+        this._screens.show("game");
+        this._views.reset();
+        break;
+      case "game_render":
+        this._views.render(msg.content);
+        break;
+      case "game_over":
+        this._views.gameOver();
+        break;
+      case "error":
+        alert(msg.message || "Server error");
+        if (msg.fatal) this._leaveRoom();
+        break;
+    }
+  }
+
+  _onStatus(status) {
+    this._badge.set(status);
+    if (status === "connected") {
+      this._reconnectAttempts = 0;
+      this._attemptRejoin();
+    }
+  }
+
+  // ── room lifecycle ──────────────────────────────────────────────────────────
+
+  _attemptRejoin() {
+    const s = session.load();
+    if (!s) return;
+    if (s.nick) this._nick.value = s.nick;
+    if (s.token) {
+      this._gateway.send({ action: "reconnect", token: s.token, ip: s.ip, port: s.port });
+    } else if (s.code) {
+      this._gateway.send({ action: "join_room", code: s.code, name: s.nick || this._nick.value });
+    }
+  }
+
+  _leaveRoom() {
+    session.clear();
+    location.reload();
+  }
+
+  _hostRoom() {
+    if (!this._nick.require()) return;
+    this._gateway.send({ action: "create_room", name: this._nick.value, game: this._selectedGame });
+    this._hostBtn.disabled = true;
+    this._hostHint.textContent = "Creating…";
+  }
+
+  _joinRoom(room) {
+    if (!this._nick.require()) return;
+    this._pendingServer = { ip: room.ip, port: room.port };
+    this._gateway.send({ action: "join_room", ip: room.ip, port: room.port, name: this._nick.value });
+  }
+
+  _initGameGrid() {
+    const tiles = document.querySelectorAll(".game-tile");
+    for (const tile of tiles) {
+      tile.addEventListener("click", () => {
+        tiles.forEach((t) => t.classList.remove("selected"));
+        tile.classList.add("selected");
+        this._selectedGame = tile.dataset.game || "uno";
+      });
+    }
+  }
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
-
-lobby.init({
-  onJoin:   joinRoom,
-  onChat:   (text) => gateway.send({ action: "chat", text }),
-  onLeave:  () => { gateway.send({ action: "leave" }); leaveRoom(); },
-  onStart:  () => gateway.send({ action: "start_game", rules: rulesModal.getRulesSpec() }),
-  onAddBot: () => gateway.send({ action: "add_bot" }),
-  onKick:   (name) => gateway.send({ action: "kick", target: name }),
-});
-
-for (const view of allViews()) view.init(actions);
-
-hostBtn.addEventListener("click", hostRoom);
-document.getElementById("host-btn-2")?.addEventListener("click", hostRoom);
-document.getElementById("uno-quit")?.addEventListener("click", () => { actions.quit(); leaveRoom(); });
-
-initGameGrid();
-rulesModal.init();
-helpModal.init();
-document.getElementById("help-btn")?.addEventListener("click", () => helpModal.open(selectedGame));
-document.getElementById("help-btn-game")?.addEventListener("click", () => helpModal.open(activeGameKey));
+new App().start();
