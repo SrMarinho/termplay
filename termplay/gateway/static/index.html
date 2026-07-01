@@ -177,7 +177,10 @@
     <div id="uno-3d-info" class="uno-3d-info hidden"></div>
     <div id="uno-3d-hud" class="uno-3d-hud hidden"></div>
     <div id="uno-timer" class="turn-timer hidden">
-      <div class="timer-bar-wrap"><div id="uno-timer-bar" class="timer-bar"></div></div>
+      <svg class="timer-ring" viewBox="0 0 60 60">
+        <circle class="timer-ring-track" cx="30" cy="30" r="26"></circle>
+        <circle id="uno-timer-bar" class="timer-ring-progress" cx="30" cy="30" r="26"></circle>
+      </svg>
       <span id="uno-timer-label" class="timer-label">30</span>
     </div>
 

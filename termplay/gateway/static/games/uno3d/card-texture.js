@@ -65,7 +65,7 @@ function _bracket(c, x, y, corner, color) {
   c.stroke();
 }
 
-export function makeCardTexture(face, { playable = false, faded = false } = {}) {
+export function makeCardTexture(face, { playable = false } = {}) {
   const [ck, val] = face.includes(":") ? face.split(":") : ["W", face];
   const W = 256, H = 384;
   const cv = document.createElement("canvas");
@@ -73,7 +73,9 @@ export function makeCardTexture(face, { playable = false, faded = false } = {}) 
   const c = cv.getContext("2d");
 
   // Background — diagonal gradient matching CSS linear-gradient(160deg,…)
-  const [c1, c2] = faded ? ["#3a3a3a", "#1e1e1e"] : (GRAD[ck] ?? GRAD.W);
+  // (kept in true color even when unplayable — the playable glow already
+  // marks which cards can be played, no need to also darken the rest)
+  const [c1, c2] = GRAD[ck] ?? GRAD.W;
   const grd = c.createLinearGradient(0, 0, W * 0.65, H);
   grd.addColorStop(0, c1);
   grd.addColorStop(1, c2);
@@ -147,7 +149,7 @@ export function makeCardTexture(face, { playable = false, faded = false } = {}) 
   return tex;
 }
 
-export function makeCardBack() {
+export function makeCardBack(glow = false) {
   const W = 256, H = 384;
   const cv = document.createElement("canvas");
   cv.width = W; cv.height = H;
@@ -186,6 +188,21 @@ export function makeCardBack() {
   c.font = "500 30px Georgia, serif";
   c.fillText("termplay", W / 2, H / 2 + 28);
   c.restore();
+
+  // Deck-top glow — gold blur layers, drawn onto the texture (matches the
+  // hand card's "playable" highlight instead of a real scene light)
+  if (glow) {
+    for (const [blur, alpha, lw] of [[18, 0.35, 14], [8, 0.6, 8], [0, 0.9, 4]]) {
+      c.save();
+      c.shadowColor = "rgba(212,175,55,0.9)";
+      c.shadowBlur = blur;
+      c.strokeStyle = `rgba(212,175,55,${alpha})`;
+      c.lineWidth = lw;
+      _round(c, 5, 5, W - 10, H - 10, 17);
+      c.stroke();
+      c.restore();
+    }
+  }
 
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
