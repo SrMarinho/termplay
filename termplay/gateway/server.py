@@ -18,6 +18,7 @@ import contextlib
 import json
 import logging
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from termplay.engine.discovery import RoomDiscoverer
 from termplay.engine.protocol import (
@@ -93,6 +94,8 @@ class WebGateway:
                     reader, writer, headers["sec-websocket-key"]
                 )
                 await self._ws_session(ws)
+            elif path.startswith("/api/"):
+                await self._serve_api(writer, path)
             else:
                 await self._serve_static(writer, path)
         except (ConnectionError, OSError):
@@ -102,6 +105,32 @@ class WebGateway:
         finally:
             with contextlib.suppress(Exception):
                 writer.close()
+
+    # ── JSON API ─────────────────────────────────────────────────────────────
+
+    async def _serve_api(self, writer: asyncio.StreamWriter, path: str) -> None:
+        from termplay.engine.stats import get_stats_store
+
+        parsed = urlparse(path)
+        if parsed.path != "/api/leaderboard":
+            writer.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+            await writer.drain()
+            return
+        game = (parse_qs(parsed.query).get("game") or [None])[0]
+        store = get_stats_store()
+        rows = store.leaderboard(game) if store is not None else []
+        body = json.dumps({
+            "leaderboard": [
+                {"player": name, "wins": wins, "played": played}
+                for name, wins, played in rows
+            ],
+        }).encode("utf-8")
+        writer.write(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\n"
+            + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
+            + body
+        )
+        await writer.drain()
 
     # ── static files ─────────────────────────────────────────────────────────
 

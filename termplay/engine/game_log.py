@@ -32,6 +32,7 @@ class GameLogger:
         self.match_id = match_id or uuid.uuid4().hex[:8]
         self._seq = itertools.count(1)
         self._path = self._resolve_path()
+        self._players: list[str] = []
 
     def _resolve_path(self) -> Path | None:
         root = os.environ.get(ENV_DIR)
@@ -63,4 +64,30 @@ class GameLogger:
                     fh.write(line + "\n")
             except OSError:
                 logger.warning("gamelog: write failed", exc_info=True)
+        self._notify_stats(event, record)
         return record
+
+    def _notify_stats(self, event: str, record: dict[str, object]) -> None:
+        """Feed match results into the persistent stats store (best-effort:
+        a stats failure must never take a running match down)."""
+        if event == "match_start":
+            players = record.get("players")
+            if isinstance(players, list):
+                self._players = [str(p) for p in players]
+            return
+        if event not in ("match_end", "match_over") or not self._players:
+            return
+        try:
+            from termplay.engine.stats import get_stats_store
+
+            store = get_stats_store()
+            if store is not None:
+                winner = record.get("winner")
+                store.record_match(
+                    self.game,
+                    self.match_id,
+                    self._players,
+                    str(winner) if winner else None,
+                )
+        except Exception:
+            logger.warning("stats: record_match failed", exc_info=True)

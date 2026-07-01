@@ -37,7 +37,7 @@ class HomeScreen(Screen[None]):
     }
     """
 
-    _BUTTONS: ClassVar[list[str]] = ["solo", "multi", "config", "quit"]
+    _BUTTONS: ClassVar[list[str]] = ["solo", "multi", "ranking", "config", "quit"]
 
     def on_mount(self) -> None:
         self.query_one("#solo", Button).focus()
@@ -62,6 +62,7 @@ class HomeScreen(Screen[None]):
             Label("🎮  termplay", id="title"),
             Button("Jogar Solo", id="solo", variant="primary"),
             Button("🌐 Multiplayer", id="multi", variant="default"),
+            Button("🏆 Ranking", id="ranking", variant="default"),
             Button("⚙ Configuração", id="config", variant="default"),
             Button("Sair", id="quit", variant="warning"),
         )
@@ -76,6 +77,10 @@ class HomeScreen(Screen[None]):
                 MultiplayerMenuScreen,
             )
             self.app.push_screen(MultiplayerMenuScreen())
+        elif event.button.id == "ranking":
+            from termplay.frontends.screens.leaderboard import LeaderboardScreen
+
+            self.app.push_screen(LeaderboardScreen())
         elif event.button.id == "config":
             from termplay.frontends.screens.settings import SettingsScreen
 

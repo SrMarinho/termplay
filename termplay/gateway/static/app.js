@@ -5,6 +5,7 @@ import * as rulesModal from "./core/rules-modal.js";
 import * as helpModal from "./core/help-modal.js";
 import * as session from "./core/session.js";
 import { GatewaySocket } from "./core/gateway.js";
+import { LeaderboardPanel } from "./core/leaderboard.js";
 import { NicknameField } from "./core/nickname.js";
 import { ScreenRouter } from "./core/screens.js";
 import { ViewManager } from "./core/view-manager.js";
@@ -88,6 +89,7 @@ class App {
     });
 
     this._initGameGrid();
+    new LeaderboardPanel().start();
     rulesModal.init();
     helpModal.init();
     document.getElementById("help-btn")
