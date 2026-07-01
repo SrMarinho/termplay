@@ -20,7 +20,12 @@ import logging
 from pathlib import Path
 
 from termplay.engine.discovery import RoomDiscoverer
-from termplay.engine.protocol import ACTION_CREATE_ROOM, ACTION_JOIN_ROOM, encode
+from termplay.engine.protocol import (
+    ACTION_CREATE_ROOM,
+    ACTION_JOIN_ROOM,
+    ACTION_RECONNECT,
+    encode,
+)
 from termplay.gateway.ws import WebSocket, WebSocketClosed, read_http_head
 
 logger = logging.getLogger(__name__)
@@ -161,17 +166,18 @@ class WebGateway:
             await ws.close()
 
     async def _await_connect(self, ws: WebSocket) -> dict[str, object] | None:
-        """Wait for the browser's first ``create_room`` or ``join_room`` message."""
+        """Wait for the browser's first connect message (create/join/reconnect)."""
         while True:
             msg = _safe_json(await ws.recv_text())
-            if msg.get("action") in ("create_room", "join_room"):
+            if msg.get("action") in ("create_room", "join_room", "reconnect"):
                 return msg
 
     def _resolve_server(self, msg: dict[str, object]) -> tuple[str, int]:
         """Return (host, port) of the game server for this connection.
 
         For create_room, always use the configured game server.
-        For join_room, use ip/port from the discovered room.
+        For join_room/reconnect, use ip/port carried by the browser (falls back
+        to the configured game server).
         """
         if msg.get("action") == "create_room":
             return self._game_server
@@ -182,18 +188,23 @@ class WebGateway:
 
     @staticmethod
     def _build_connect_payload(msg: dict[str, object]) -> dict[str, object]:
-        """Build the ACTION_CREATE_ROOM or ACTION_JOIN_ROOM TCP payload."""
-        name = str(msg.get("name") or "Player")
-        if msg.get("action") == "create_room":
+        """Build the first TCP payload (create_room / join_room / reconnect)."""
+        action = msg.get("action")
+        if action == "create_room":
             return {
                 "action": ACTION_CREATE_ROOM,
-                "name": name,
+                "name": str(msg.get("name") or "Player"),
                 "game": str(msg.get("game") or "uno"),
                 "rules": str(msg.get("rules") or "standard"),
             }
+        if action == "reconnect":
+            return {
+                "action": ACTION_RECONNECT,
+                "token": str(msg.get("token") or ""),
+            }
         return {
             "action": ACTION_JOIN_ROOM,
-            "name": name,
+            "name": str(msg.get("name") or "Player"),
             "code": str(msg.get("code") or ""),
         }
 

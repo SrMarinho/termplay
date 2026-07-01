@@ -22,11 +22,13 @@ from termplay.engine.protocol import (
     ACTION_JOIN_ROOM,
     ACTION_KICK,
     ACTION_LEAVE,
+    ACTION_RECONNECT,
     ACTION_START_GAME,
     TYPE_CHAT,
     TYPE_ERROR,
     TYPE_GAME_OVER,
     TYPE_GAME_START,
+    TYPE_RECONNECTED,
     TYPE_ROOM_CREATED,
     TYPE_ROOM_JOINED,
     TYPE_ROOM_STATE,
@@ -40,22 +42,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MIN_PLAYERS = 2
+RECONNECT_GRACE_S = 60.0
 
 
 class TermPlayServer:
     """Servidor TCP que coordena salas multiplayer via protocolo JSON."""
 
     def __init__(
-        self, host: str = "0.0.0.0", port: int = 4443, game_name: str = "blackjack"
+        self,
+        host: str = "0.0.0.0",
+        port: int = 4443,
+        game_name: str = "blackjack",
+        reconnect_grace: float = RECONNECT_GRACE_S,
     ) -> None:
         self.host = host
         self.port = port
         self._game_name = game_name
+        self.reconnect_grace = reconnect_grace
         self._server: asyncio.Server | None = None
         self._broadcaster = RoomBroadcaster()
         self._broadcast_task: asyncio.Task[None] | None = None
         self._clients: set[asyncio.Task[None]] = set()
         self._runners: dict[str, asyncio.Task[None]] = {}
+        # Per-player-token bookkeeping for reconnection: the task currently
+        # serving that player, and the pending grace-expiry reaper (if any).
+        self._serving: dict[str, asyncio.Task[None]] = {}
+        self._grace: dict[str, asyncio.Task[None]] = {}
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(
@@ -94,6 +106,10 @@ class TermPlayServer:
                     str(first.get("code") or "").upper(),
                     stealth,
                 )
+            elif action == ACTION_RECONNECT:
+                await self._reconnect_flow(
+                    adapter, reader, writer, str(first.get("token") or "")
+                )
             else:
                 await adapter.send_control(
                     type=TYPE_ERROR, message="Ação inválida", fatal=True
@@ -130,7 +146,12 @@ class TermPlayServer:
         # connection, so the host may leave (and leadership migrate) without
         # tearing down the room.
         self._runners[room.code] = asyncio.create_task(self._room_runner(room))
-        await adapter.send_control(type=TYPE_ROOM_CREATED, code=room.code, you=name)
+        await adapter.send_control(
+            type=TYPE_ROOM_CREATED,
+            code=room.code,
+            you=name,
+            session_token=player.token,
+        )
         await self._broadcast_state(room)
         await self._serve_player(adapter, room, player)
 
@@ -172,9 +193,65 @@ class TermPlayServer:
         # A reconnecting host keeps leadership across a reload.
         if stale_was_host:
             room.host = player
-        await adapter.send_control(type=TYPE_ROOM_JOINED, code=room.code, you=name)
+        await adapter.send_control(
+            type=TYPE_ROOM_JOINED,
+            code=room.code,
+            you=name,
+            session_token=player.token,
+        )
         await self._broadcast_state(room)
         await self._serve_player(adapter, room, player)
+
+    # ── Reconnect ────────────────────────────────────────────────────────────
+
+    async def _reconnect_flow(
+        self,
+        adapter: ProtocolServerAdapter,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        token: str,
+    ) -> None:
+        found = RoomManager.find_player(token) if token else None
+        if found is None:
+            await adapter.send_control(
+                type=TYPE_ERROR, message="Sessão expirada.", fatal=True
+            )
+            return
+        room, player = found
+        old = player.transport
+        if not isinstance(old, ProtocolServerAdapter):
+            await adapter.send_control(
+                type=TYPE_ERROR, message="Sessão não suporta reconexão.", fatal=True
+            )
+            return
+
+        # Tear down the previous serving task (if it is still around) BEFORE
+        # rebinding, so its cleanup closes the old streams, not the new ones.
+        stale_task = self._serving.pop(player.token, None)
+        if stale_task is not None and not stale_task.done():
+            stale_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await stale_task
+        reaper = self._grace.pop(player.token, None)
+        if reaper is not None:
+            reaper.cancel()
+
+        old.rebind(reader, writer)
+        player.connected = True
+        in_game = room.ready.is_set()
+        await old.send_control(
+            type=TYPE_RECONNECTED,
+            code=room.code,
+            you=player.name,
+            in_game=in_game,
+            session_token=player.token,
+        )
+        await self._broadcast_state(room)
+        if in_game:
+            await old.send_control(type=TYPE_GAME_START, game=room.game)
+            if old.last_render is not None:
+                await old.write(old.last_render)
+        await self._serve_player(old, room, player)
 
     # ── Unified per-player loop ──────────────────────────────────────────────
 
@@ -183,7 +260,15 @@ class TermPlayServer:
     ) -> None:
         """Lobby + game loop shared by host and guests. Host-only actions are
         gated on ``player is room.host`` so leadership can migrate freely. After a
-        match the loop returns to the lobby so players can rematch."""
+        match the loop returns to the lobby so players can rematch.
+
+        An explicit ``leave`` frees the seat immediately; a dropped connection
+        keeps the seat for ``reconnect_grace`` seconds so the player can rebind
+        with their session token."""
+        task = asyncio.current_task()
+        if task is not None:
+            self._serving[player.token] = task
+        explicit_leave = False
         try:
             while True:
                 # Lobby phase: wait for the host to start (or the player to leave).
@@ -198,6 +283,7 @@ class TermPlayServer:
                         return
                     action = msg.get("action")
                     if action == ACTION_LEAVE:
+                        explicit_leave = True
                         return
                     if action == ACTION_CHAT:
                         await self._broadcast_chat(
@@ -206,18 +292,31 @@ class TermPlayServer:
                     elif player is room.host:
                         await self._handle_host_action(adapter, room, action, msg)
 
-                # Game phase: relay input until the match completes.
+                # Game phase: relay input until the match completes — or the
+                # connection drops, in which case the seat waits for a reconnect.
                 relay = asyncio.create_task(self._relay(adapter, room, player.name))
-                await room.game_complete.wait()
-                relay.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await relay
+                complete = asyncio.create_task(room.game_complete.wait())
+                await asyncio.wait(
+                    {relay, complete}, return_when=asyncio.FIRST_COMPLETED
+                )
+                dropped = relay.done() and not room.game_complete.is_set()
+                for pending in (relay, complete):
+                    pending.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await pending
+                if dropped:
+                    return
                 # Wait for the runner to return the room to the lobby, then loop
                 # back so the player can play another round.
                 while room.ready.is_set():
                     await asyncio.sleep(0.05)
         finally:
-            await self._handle_departure(room, player)
+            if self._serving.get(player.token) is task:
+                self._serving.pop(player.token, None)
+            if explicit_leave:
+                await self._handle_departure(room, player)
+            else:
+                self._on_disconnect(room, player)
 
     async def _handle_host_action(
         self,
@@ -282,6 +381,33 @@ class TermPlayServer:
             room.host = humans[0]
             self._broadcaster.update(host=room.host.name)
         await self._broadcast_state(room)
+
+    def _on_disconnect(self, room: Room, player: RoomPlayer) -> None:
+        """Connection dropped without an explicit leave: keep the seat and give
+        the player ``reconnect_grace`` seconds to rebind before departing."""
+        if player not in room.players or not player.connected:
+            return
+        player.connected = False
+        self._grace[player.token] = asyncio.create_task(
+            self._grace_reaper(room, player)
+        )
+
+    async def _grace_reaper(self, room: Room, player: RoomPlayer) -> None:
+        try:
+            await self._broadcast_state(room)
+            await asyncio.sleep(self.reconnect_grace)
+            if player.connected or player not in room.players:
+                return
+            if room.ready.is_set():
+                # Mid-match: the controller still holds this player's transport,
+                # so defer the actual removal until the match ends.
+                await room.game_complete.wait()
+                if player.connected:
+                    return
+            await self._handle_departure(room, player)
+        finally:
+            if self._grace.get(player.token) is asyncio.current_task():
+                self._grace.pop(player.token, None)
 
     # ── Jogo ─────────────────────────────────────────────────────────────────
 
@@ -351,6 +477,7 @@ class TermPlayServer:
             host=room.host.name,
             players=[p.name for p in room.players],
             bots=[p.name for p in room.players if p.is_bot],
+            disconnected=[p.name for p in room.players if not p.connected],
             player_count=room.player_count,
             min_players=MIN_PLAYERS,
             max_players=room.max_players,
@@ -414,7 +541,10 @@ class TermPlayServer:
         # so the event loop has nothing left blocking shutdown.
         runners = list(self._runners.values())
         self._runners.clear()
-        clients = list(self._clients) + runners
+        graces = list(self._grace.values())
+        self._grace.clear()
+        self._serving.clear()
+        clients = list(self._clients) + runners + graces
         self._clients.clear()
         for task in clients:
             task.cancel()

@@ -15,6 +15,7 @@ import termplay.games.hangman.plugin  # registra Forca
 import termplay.games.tictactoe.plugin  # registra Velha
 import termplay.games.uno.plugin    # noqa: F401  # registra Uno
 import termplay.games.truco.plugin  # noqa: F401  # registra Truco
+from termplay.engine.protocol import ACTION_RECONNECT
 from termplay.frontends.net import ServerConnection
 from termplay.frontends.screens.home import HomeScreen
 
@@ -40,6 +41,8 @@ class TermplayTUIApp(App[None]):
         self.connection: ServerConnection | None = None
         self._msg_handler: MessageHandler | None = None
         self._embedded_server: object = None  # TermPlayServer | None, lazy import
+        self._session_token: str | None = None
+        self._last_addr: tuple[str, int] | None = None
 
     def on_mount(self) -> None:
         self.push_screen(HomeScreen())
@@ -54,6 +57,7 @@ class TermplayTUIApp(App[None]):
             self.connection = await ServerConnection.connect(host, port)
         except OSError:
             return False
+        self._last_addr = (host, port)
         self.run_worker(self._listen(), exclusive=False)
         return True
 
@@ -89,6 +93,7 @@ class TermplayTUIApp(App[None]):
         self.exit()
 
     async def disconnect_server(self) -> None:
+        self._session_token = None
         if self.connection is not None:
             await self.connection.close()
             self.connection = None
@@ -100,13 +105,38 @@ class TermplayTUIApp(App[None]):
         while conn is not None:
             msg = await conn.recv()
             if msg is None:
+                if await self._try_reconnect(conn):
+                    conn = self.connection
+                    continue
                 if self._msg_handler is not None:
                     await self._msg_handler(
                         {"type": "error", "message": "Conexão encerrada", "fatal": True}
                     )
                 break
+            token = msg.get("session_token")
+            if token:
+                self._session_token = str(token)
             if self._msg_handler is not None:
                 await self._msg_handler(msg)
+
+    async def _try_reconnect(self, old_conn: ServerConnection) -> bool:
+        """Rebind the session after a dropped connection. False when the drop
+        was user-initiated, no token is known, or every attempt failed."""
+        if self._session_token is None or self._last_addr is None:
+            return False
+        host, port = self._last_addr
+        for delay in (0.5, 1.0, 2.0, 4.0):
+            if self.connection is not old_conn:
+                return False  # replaced or intentionally disconnected meanwhile
+            await asyncio.sleep(delay)
+            try:
+                new_conn = await ServerConnection.connect(host, port)
+            except OSError:
+                continue
+            await new_conn.send(action=ACTION_RECONNECT, token=self._session_token)
+            self.connection = new_conn
+            return True
+        return False
 
 
 def main() -> None:

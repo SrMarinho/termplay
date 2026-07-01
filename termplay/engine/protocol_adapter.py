@@ -30,14 +30,26 @@ class ProtocolServerAdapter(ITransportAdapter):
         self._writer = writer
         self.input_queue: asyncio.Queue[str] = asyncio.Queue()
         self._width = 80
+        self.last_render: str | None = None
+
+    def rebind(self, reader: _asyncio.StreamReader, writer: _asyncio.StreamWriter) -> None:
+        """Swap the underlying streams after a reconnect. The adapter object is
+        what game controllers hold on to, so its identity (and input_queue)
+        must survive the connection swap."""
+        self._reader = reader
+        self._writer = writer
 
     # ── Protocolo (lobby) ────────────────────────────────────────────────────
 
     async def send_control(self, **fields: object) -> None:
         if self._writer.is_closing():
             return
-        self._writer.write(encode(fields))
-        await self._writer.drain()
+        try:
+            self._writer.write(encode(fields))
+            await self._writer.drain()
+        except (ConnectionError, OSError):
+            # Peer dropped mid-write; the read side will surface the disconnect.
+            pass
 
     async def recv_control(self) -> dict[str, Any] | None:
         try:
@@ -54,6 +66,7 @@ class ProtocolServerAdapter(ITransportAdapter):
     # ── ITransportAdapter (jogo) ─────────────────────────────────────────────
 
     async def write(self, text: str) -> None:
+        self.last_render = text
         await self.send_control(type=TYPE_GAME_RENDER, content=text)
 
     async def read_line(self) -> str:

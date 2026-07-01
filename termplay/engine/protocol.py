@@ -20,6 +20,7 @@ ACTION_LEAVE = "leave"
 ACTION_GAME_INPUT = "game_input"
 ACTION_ADD_BOT = "add_bot"    # host only: add a CPU bot to the room
 ACTION_KICK = "kick"          # host only: remove player by name (field: "target")
+ACTION_RECONNECT = "reconnect"  # fields: "token" (required), "code" (optional hint)
 
 # Tipos servidor → cliente
 TYPE_ROOM_CREATED = "room_created"
@@ -30,6 +31,7 @@ TYPE_GAME_START = "game_start"
 TYPE_GAME_RENDER = "game_render"
 TYPE_GAME_OVER = "game_over"
 TYPE_ERROR = "error"
+TYPE_RECONNECTED = "reconnected"  # fields: code, you, in_game
 
 
 def encode(msg: dict[str, Any]) -> bytes:

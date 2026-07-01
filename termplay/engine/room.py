@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import random
 import string
+import uuid
 from dataclasses import dataclass, field
 from typing import ClassVar
 
@@ -20,6 +21,8 @@ class RoomPlayer:
     stealth: bool = False
     is_bot: bool = False
     input_queue: asyncio.Queue[str] = field(default_factory=asyncio.Queue)
+    token: str = field(default_factory=lambda: uuid.uuid4().hex)
+    connected: bool = True
 
 
 @dataclass
@@ -46,7 +49,12 @@ class Room:
             self.players.remove(player)
 
     async def broadcast(self, text: str) -> None:
-        await asyncio.gather(*(p.transport.write(text) for p in self.players))
+        await asyncio.gather(
+            *(p.transport.write(text) for p in self.players if p.connected)
+        )
+
+    def find_by_token(self, token: str) -> RoomPlayer | None:
+        return next((p for p in self.players if p.token == token), None)
 
     @property
     def is_full(self) -> bool:
@@ -89,6 +97,15 @@ class RoomManager:
     @classmethod
     def clear(cls) -> None:
         cls._rooms.clear()
+
+    @classmethod
+    def find_player(cls, token: str) -> tuple[Room, RoomPlayer] | None:
+        """Locate a player by session token across every active room."""
+        for room in cls._rooms.values():
+            player = room.find_by_token(token)
+            if player is not None:
+                return room, player
+        return None
 
     @classmethod
     def first(cls) -> Room | None:
